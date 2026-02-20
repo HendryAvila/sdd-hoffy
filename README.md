@@ -2,9 +2,11 @@
 
 **Spec-Driven Development for the AI era.** An MCP server that guides you from a vague idea to clear, actionable specifications — so your AI coder builds what you actually want.
 
+[![CI](https://github.com/HendryAvila/sdd-hoffy/actions/workflows/ci.yml/badge.svg)](https://github.com/HendryAvila/sdd-hoffy/actions/workflows/ci.yml)
 [![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?logo=go&logoColor=white)](https://go.dev)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-purple)](https://modelcontextprotocol.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/HendryAvila/sdd-hoffy?include_prereleases)](https://github.com/HendryAvila/sdd-hoffy/releases)
 
 ---
 
@@ -45,10 +47,24 @@ The **Clarity Gate** is the core innovation. It's a quality check that analyzes 
 ### 1. Install
 
 ```bash
-# Option A: Go install
+# Option A: Go install (requires Go 1.25+)
 go install github.com/HendryAvila/sdd-hoffy/cmd/sdd-hoffy@latest
 
-# Option B: Build from source
+# Option B: Download binary (no Go required)
+# Download the latest release for your platform from:
+# https://github.com/HendryAvila/sdd-hoffy/releases
+#
+# Linux (amd64):
+curl -Lo sdd-hoffy.tar.gz https://github.com/HendryAvila/sdd-hoffy/releases/latest/download/sdd-hoffy_linux_amd64.tar.gz
+tar xzf sdd-hoffy.tar.gz
+sudo mv sdd-hoffy /usr/local/bin/
+
+# macOS (Apple Silicon):
+curl -Lo sdd-hoffy.tar.gz https://github.com/HendryAvila/sdd-hoffy/releases/latest/download/sdd-hoffy_darwin_arm64.tar.gz
+tar xzf sdd-hoffy.tar.gz
+sudo mv sdd-hoffy /usr/local/bin/
+
+# Option C: Build from source
 git clone https://github.com/HendryAvila/sdd-hoffy.git
 cd sdd-hoffy
 make build
@@ -348,6 +364,8 @@ make lint
 - [x] MVP: Init, Propose, Specify, Clarify pipeline
 - [x] Dual mode (Guided/Expert)
 - [x] MCP server with stdio transport
+- [x] CI/CD pipeline (GitHub Actions + GoReleaser)
+- [x] Multi-platform binary releases (Linux, macOS, Windows)
 - [ ] Stage 4: Design (technical architecture generation)
 - [ ] Stage 5: Tasks (atomic task breakdown)
 - [ ] Stage 6: Validate (cross-artifact consistency)

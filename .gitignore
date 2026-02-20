@@ -22,6 +22,9 @@ Thumbs.db
 *.out
 vendor/
 
+# GoReleaser
+dist/
+
 # SDD artifacts (don't commit generated specs from testing)
 sdd/
 
