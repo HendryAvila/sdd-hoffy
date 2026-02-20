@@ -22,6 +22,13 @@ BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m' # No Color
 
+# --- Interactive input ---
+# When running via curl | bash, stdin is the script itself.
+# Reopen /dev/tty so we can ask the user questions regardless.
+if [ ! -t 0 ] && [ -e /dev/tty ]; then
+    exec < /dev/tty
+fi
+
 # --- Helper functions ---
 
 info() {
@@ -441,13 +448,6 @@ verify_install() {
 main() {
     print_banner
 
-    # Check for piped input (when using curl | bash, stdin is the script)
-    # We need a real terminal for the MCP config wizard
-    local can_prompt=true
-    if [ ! -t 0 ]; then
-        can_prompt=false
-    fi
-
     step "Detecting system"
     local os arch
     os=$(detect_os)
@@ -473,16 +473,8 @@ main() {
     verify_install "$install_dir"
     check_path "$install_dir"
 
-    # MCP configuration wizard (only if running interactively)
-    if [ "$can_prompt" = true ]; then
-        configure_mcp
-    else
-        step "MCP Configuration"
-        info "Running in non-interactive mode — skipping MCP configuration."
-        print_manual_config
-        info "To configure later, run: ${BOLD}bash <(curl -sSL https://raw.githubusercontent.com/HendryAvila/sdd-hoffy/main/install.sh)${NC}"
-        info "Or configure manually using the JSON above."
-    fi
+    # MCP configuration wizard
+    configure_mcp
 
     # Done!
     printf "\n"

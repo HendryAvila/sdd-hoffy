@@ -115,11 +115,6 @@ curl -sSL https://raw.githubusercontent.com/HendryAvila/sdd-hoffy/main/install.s
 
 This detects your OS/architecture, downloads the latest binary, installs it, and walks you through configuring your AI tool — no Go required.
 
-> **Tip:** If you prefer an interactive install (to answer MCP config questions), run:
-> ```bash
-> bash <(curl -sSL https://raw.githubusercontent.com/HendryAvila/sdd-hoffy/main/install.sh)
-> ```
-
 <details>
 <summary><strong>Other installation methods</strong></summary>
 
