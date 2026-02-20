@@ -237,6 +237,75 @@ sdd-hoffy update
 
 No auto-restarts, no surprises — you decide when to update.
 
+### 5. Make it proactive (optional but recommended)
+
+SDD-Hoffy already includes built-in instructions that tell your AI when to suggest using the SDD pipeline. But if you want to **reinforce** this behavior, add the following to your project's agent instructions file:
+
+<details>
+<summary><strong>Claude Code</strong> — add to <code>CLAUDE.md</code></summary>
+
+```markdown
+## Spec-Driven Development
+
+When the user asks to build a new project, add a feature, or design something,
+ALWAYS suggest using SDD-Hoffy first to create clear specs before writing code.
+Use the /sdd-start prompt or call sdd_init_project to begin the pipeline.
+Do NOT start coding without specs for any non-trivial change.
+```
+</details>
+
+<details>
+<summary><strong>Cursor</strong> — add to <code>.cursor/rules/sdd.md</code></summary>
+
+```markdown
+## Spec-Driven Development
+
+When the user asks to build a new project, add a feature, or design something,
+ALWAYS suggest using SDD-Hoffy first to create clear specs before writing code.
+Use the /sdd-start prompt or call sdd_init_project to begin the pipeline.
+Do NOT start coding without specs for any non-trivial change.
+```
+</details>
+
+<details>
+<summary><strong>OpenCode</strong> — add to <code>AGENTS.md</code></summary>
+
+```markdown
+## Spec-Driven Development
+
+When the user asks to build a new project, add a feature, or design something,
+ALWAYS suggest using SDD-Hoffy first to create clear specs before writing code.
+Use the /sdd-start prompt or call sdd_init_project to begin the pipeline.
+Do NOT start coding without specs for any non-trivial change.
+```
+</details>
+
+<details>
+<summary><strong>VS Code Copilot</strong> — add to <code>.github/copilot-instructions.md</code></summary>
+
+```markdown
+## Spec-Driven Development
+
+When the user asks to build a new project, add a feature, or design something,
+ALWAYS suggest using SDD-Hoffy first to create clear specs before writing code.
+Use the /sdd-start prompt or call sdd_init_project to begin the pipeline.
+Do NOT start coding without specs for any non-trivial change.
+```
+</details>
+
+<details>
+<summary><strong>Gemini CLI</strong> — add to <code>GEMINI.md</code></summary>
+
+```markdown
+## Spec-Driven Development
+
+When the user asks to build a new project, add a feature, or design something,
+ALWAYS suggest using SDD-Hoffy first to create clear specs before writing code.
+Use the /sdd-start prompt or call sdd_init_project to begin the pipeline.
+Do NOT start coding without specs for any non-trivial change.
+```
+</details>
+
 ---
 
 ## The SDD Pipeline

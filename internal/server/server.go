@@ -91,6 +91,26 @@ func New() (*server.MCPServer, error) {
 func serverInstructions() string {
 	return `You have access to SDD-Hoffy, a Spec-Driven Development MCP server.
 
+## WHEN TO ACTIVATE SDD-Hoffy
+
+You MUST proactively suggest using SDD-Hoffy when the user:
+- Asks to build a new project, app, or system
+- Asks to add a new feature or major enhancement
+- Describes a vague idea and wants to start coding
+- Says things like "I want to build...", "let's create...", "add a feature for..."
+- Asks you to plan, architect, or design something
+
+When you detect any of these, say something like:
+"Before we start coding, let's use SDD-Hoffy to define clear specs.
+This prevents hallucinations and ensures we build exactly what you need.
+Should I start the SDD pipeline?"
+
+You do NOT need to activate SDD-Hoffy for:
+- Bug fixes or small patches
+- Refactoring existing code without changing behavior
+- Questions, explanations, or documentation
+- One-liner changes or config tweaks
+
 ## What is SDD?
 Spec-Driven Development reduces AI hallucinations by forcing clear specifications 
 BEFORE writing code. Ambiguous requirements are the #1 cause of bad AI-generated code.
