@@ -6,7 +6,6 @@
 #   1. Detects your OS and architecture
 #   2. Downloads the latest sdd-hoffy binary from GitHub
 #   3. Installs it to your PATH
-#   4. Optionally configures your AI tool's MCP settings
 #
 # Works on: macOS (Intel/Apple Silicon), Linux (x86_64/arm64), WSL
 
@@ -42,12 +41,6 @@ error() {
 
 step() {
     printf "\n${BOLD}${CYAN}▸ %s${NC}\n" "$1"
-}
-
-# Read user input — always from /dev/tty so it works even when
-# the script itself is piped via curl | bash.
-prompt_read() {
-    read -r "$@" </dev/tty
 }
 
 # --- Banner ---
@@ -232,190 +225,6 @@ check_path() {
     fi
 }
 
-# --- MCP Configuration Wizard ---
-
-configure_mcp() {
-    step "MCP Configuration"
-    printf "\n"
-    printf "  SDD-Hoffy works with any AI coding tool that supports MCP.\n"
-    printf "  Want to configure it now? ${DIM}(You can always do this later)${NC}\n\n"
-
-    printf "  Which tool do you use?\n\n"
-    printf "    ${BOLD}1${NC}) Claude Code (Anthropic CLI)\n"
-    printf "    ${BOLD}2${NC}) Cursor\n"
-    printf "    ${BOLD}3${NC}) VS Code + GitHub Copilot\n"
-    printf "    ${BOLD}4${NC}) OpenCode\n"
-    printf "    ${BOLD}5${NC}) Gemini CLI\n"
-    printf "    ${BOLD}6${NC}) Skip — I'll configure it myself\n"
-    printf "\n"
-
-    local choice
-    printf "  Enter your choice ${DIM}[1-6]${NC}: "
-    prompt_read choice
-
-    case "$choice" in
-        1) configure_claude_code ;;
-        2) configure_cursor ;;
-        3) configure_vscode_copilot ;;
-        4) configure_opencode ;;
-        5) configure_gemini_cli ;;
-        6|"")
-            info "No problem! You can configure MCP manually later."
-            print_manual_config
-            ;;
-        *)
-            warn "Invalid choice. Skipping MCP configuration."
-            print_manual_config
-            ;;
-    esac
-}
-
-# Adds sdd-hoffy to an existing JSON MCP config file.
-# Creates the file if it doesn't exist.
-# $1 = file path
-# $2 = JSON key for the servers object (e.g., "mcpServers" or "servers")
-add_mcp_server_to_config() {
-    local config_file="$1"
-    local servers_key="$2"
-    local config_dir
-    config_dir=$(dirname "$config_file")
-
-    # Create directory if needed
-    mkdir -p "$config_dir"
-
-    if [ -f "$config_file" ]; then
-        # File exists — check if sdd-hoffy is already configured
-        if grep -q '"sdd-hoffy"' "$config_file" 2>/dev/null; then
-            success "SDD-Hoffy is already configured in ${config_file}"
-            return
-        fi
-
-        # Check if we have jq or python3 for safe JSON manipulation
-        if command -v jq &>/dev/null; then
-            local tmp_file="${config_file}.tmp"
-            jq --arg key "$servers_key" \
-               ".[\$key][\"sdd-hoffy\"] = {\"command\": \"sdd-hoffy\", \"args\": [\"serve\"]}" \
-               "$config_file" > "$tmp_file" && mv "$tmp_file" "$config_file"
-        elif command -v python3 &>/dev/null; then
-            python3 -c "
-import json, sys
-with open('$config_file', 'r') as f:
-    data = json.load(f)
-data.setdefault('$servers_key', {})['sdd-hoffy'] = {'command': 'sdd-hoffy', 'args': ['serve']}
-with open('$config_file', 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
-"
-        else
-            warn "Neither jq nor python3 found — can't safely modify existing config."
-            warn "Please add sdd-hoffy manually to ${config_file}"
-            print_manual_config
-            return
-        fi
-    else
-        # File doesn't exist — create it
-        cat > "$config_file" <<NEWCONFIG
-{
-  "${servers_key}": {
-    "sdd-hoffy": {
-      "command": "sdd-hoffy",
-      "args": ["serve"]
-    }
-  }
-}
-NEWCONFIG
-    fi
-
-    success "Configured SDD-Hoffy in ${config_file}"
-}
-
-configure_claude_code() {
-    info "Configuring for Claude Code..."
-
-    local config_file="${HOME}/.claude.json"
-
-    # Claude Code uses ~/.claude.json with mcpServers key
-    add_mcp_server_to_config "$config_file" "mcpServers"
-
-    printf "\n"
-    info "Claude Code will detect sdd-hoffy on next startup."
-    info "Try it: ${BOLD}claude${NC} and then use the /sdd-start prompt."
-}
-
-configure_cursor() {
-    info "Configuring for Cursor..."
-
-    local config_file="${HOME}/.cursor/mcp.json"
-
-    add_mcp_server_to_config "$config_file" "mcpServers"
-
-    printf "\n"
-    info "Restart Cursor to activate sdd-hoffy."
-}
-
-configure_vscode_copilot() {
-    info "Configuring for VS Code + GitHub Copilot..."
-
-    # VS Code MCP config goes in the workspace .vscode directory
-    local config_file=".vscode/mcp.json"
-
-    printf "\n"
-    printf "  VS Code MCP config is ${BOLD}per-project${NC}.\n"
-    printf "  Create the config in your current directory? ${DIM}(%s)${NC}\n" "$(pwd)"
-    printf "  ${DIM}[Y/n]${NC}: "
-
-    local yn
-    prompt_read yn
-
-    case "$yn" in
-        [Nn]*)
-            info "Skipping. You can add it manually to any project's .vscode/mcp.json"
-            print_manual_config
-            return
-            ;;
-    esac
-
-    add_mcp_server_to_config "$config_file" "servers"
-
-    printf "\n"
-    info "Open this project in VS Code to use sdd-hoffy with Copilot."
-}
-
-configure_opencode() {
-    info "Configuring for OpenCode..."
-
-    local config_file="${HOME}/.config/opencode/config.json"
-
-    add_mcp_server_to_config "$config_file" "mcpServers"
-
-    printf "\n"
-    info "Restart OpenCode to activate sdd-hoffy."
-}
-
-configure_gemini_cli() {
-    info "Configuring for Gemini CLI..."
-
-    local config_file="${HOME}/.gemini/settings.json"
-
-    add_mcp_server_to_config "$config_file" "mcpServers"
-
-    printf "\n"
-    info "Restart Gemini CLI to activate sdd-hoffy."
-}
-
-print_manual_config() {
-    printf "\n"
-    printf "  ${DIM}Add this to your AI tool's MCP configuration:${NC}\n\n"
-    printf "  ${BOLD}{\n"
-    printf "    \"mcpServers\": {\n"
-    printf "      \"sdd-hoffy\": {\n"
-    printf "        \"command\": \"sdd-hoffy\",\n"
-    printf "        \"args\": [\"serve\"]\n"
-    printf "      }\n"
-    printf "    }\n"
-    printf "  }${NC}\n\n"
-}
-
 # --- Post-install verification ---
 
 verify_install() {
@@ -468,9 +277,6 @@ main() {
     verify_install "$install_dir"
     check_path "$install_dir"
 
-    # MCP configuration wizard
-    configure_mcp
-
     # Done!
     printf "\n"
     printf "  ${BOLD}${GREEN}╔═══════════════════════════════════════════╗${NC}\n"
@@ -479,8 +285,20 @@ main() {
     printf "  ${BOLD}${GREEN}║                                           ║${NC}\n"
     printf "  ${BOLD}${GREEN}╚═══════════════════════════════════════════╝${NC}\n"
     printf "\n"
+    printf "  ${BOLD}Next: Add SDD-Hoffy to your AI tool's MCP config:${NC}\n\n"
+    printf "  ${DIM}Claude Code (.claude/settings.json), Cursor, OpenCode (.opencode.json),${NC}\n"
+    printf "  ${DIM}VS Code Copilot (.vscode/mcp.json), Gemini CLI:${NC}\n\n"
+    printf "  ${CYAN}%s${NC}\n" '{'
+    printf "  ${CYAN}%s${NC}\n" '  "mcpServers": {'
+    printf "  ${CYAN}%s${NC}\n" '    "sdd-hoffy": {'
+    printf "  ${CYAN}%s${NC}\n" '      "command": "sdd-hoffy",'
+    printf "  ${CYAN}%s${NC}\n" '      "args": ["serve"]'
+    printf "  ${CYAN}%s${NC}\n" '    }'
+    printf "  ${CYAN}%s${NC}\n" '  }'
+    printf "  ${CYAN}%s${NC}\n" '}'
+    printf "\n"
     printf "  ${BOLD}What's next?${NC}\n\n"
-    printf "    1. Open your AI coding tool\n"
+    printf "    1. Add the JSON snippet above to your AI tool's MCP config\n"
     printf "    2. Use the ${BOLD}/sdd-start${NC} prompt to begin\n"
     printf "    3. Describe your idea — SDD-Hoffy will guide you\n"
     printf "\n"

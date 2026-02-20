@@ -30,3 +30,9 @@ sdd/
 
 # OpenCode
 .opencode/
+
+# Agent instructions (personal per developer)
+AGENTS.md
+
+# Publicidad y marketing (contenido personal)
+publicidad/

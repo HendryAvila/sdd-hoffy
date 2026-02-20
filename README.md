@@ -14,7 +14,7 @@
 
 AI coding tools are powerful but they hallucinate. A lot.
 
-The METR 2025 study found that developers are [19% slower with AI](https://metr.org/blog/2025-07-10-early-2025-ai-developer-study/) despite _feeling_ 20% faster. The DORA 2025 State of DevOps Report shows a [7.2% delivery instability increase](https://dora.dev/research/) for every 25% AI adoption — without foundational systems. McKinsey 2025 reports that top performers see [16-30% productivity gains](https://www.mckinsey.com/capabilities/mckinsey-digital/our-insights/superagency-in-the-workplace-empowering-people-to-unlock-ais-full-potential-at-work) only when they communicate structured requirements.
+The METR 2025 study found that developers are [19% slower with AI](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/) despite _feeling_ 20% faster. The DORA 2025 State of DevOps Report shows a [7.2% delivery instability increase](https://dora.dev/research/2025/dora-report/) for every 25% AI adoption — without foundational systems. McKinsey 2025 reports that top performers see [16-30% productivity gains](https://www.mckinsey.com/capabilities/mckinsey-digital/our-insights/superagency-in-the-workplace-empowering-people-to-unlock-ais-full-potential-at-work) only when they communicate structured requirements.
 
 The pattern is clear: **AI without clear specifications makes things worse, not better.**
 
@@ -113,7 +113,7 @@ SDD-Hoffy doesn't replace plan mode. It makes plan mode **dramatically better** 
 curl -sSL https://raw.githubusercontent.com/HendryAvila/sdd-hoffy/main/install.sh | bash
 ```
 
-This detects your OS/architecture, downloads the latest binary, installs it, and walks you through configuring your AI tool — no Go required.
+This detects your OS/architecture, downloads the latest binary, and installs it — no Go required.
 
 <details>
 <summary><strong>Other installation methods</strong></summary>
@@ -489,9 +489,9 @@ These files are designed to be:
 
 SDD-Hoffy isn't built on opinions. It's built on research:
 
-- **METR 2025**: In a randomized controlled trial, experienced developers were [19% slower with AI](https://metr.org/blog/2025-07-10-early-2025-ai-developer-study/) despite feeling 20% faster — because unstructured AI usage introduces debugging overhead and false confidence.
+- **METR 2025**: In a randomized controlled trial, experienced developers were [19% slower with AI](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/) despite feeling 20% faster — because unstructured AI usage introduces debugging overhead and false confidence.
 
-- **DORA 2025 State of DevOps**: Organizations see a [7.2% increase in delivery instability](https://dora.dev/research/) for every 25% increase in AI adoption — when adopted without foundational systems and practices.
+- **DORA 2025 State of DevOps**: Organizations see a [7.2% increase in delivery instability](https://dora.dev/research/2025/dora-report/) for every 25% increase in AI adoption — when adopted without foundational systems and practices.
 
 - **McKinsey 2025**: Top-performing teams achieve [16-30% productivity gains with AI](https://www.mckinsey.com/capabilities/mckinsey-digital/our-insights/superagency-in-the-workplace-empowering-people-to-unlock-ais-full-potential-at-work) — but only when they invest in structured specification and communication.
 
@@ -547,7 +547,7 @@ make lint
 - [x] CI/CD pipeline (GitHub Actions + GoReleaser)
 - [x] Multi-platform binary releases (Linux, macOS, Windows)
 - [x] Cross-artifact validation with PASS/WARN/FAIL verdicts
-- [x] One-liner install script with MCP configuration wizard
+- [x] One-liner install script
 - [x] Self-update system (`sdd-hoffy update`)
 - [ ] Streamable HTTP transport (for remote server deployment)
 - [ ] Template customization (bring your own templates)
