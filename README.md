@@ -188,13 +188,14 @@ Add to your MCP configuration:
 <details>
 <summary><strong>OpenCode</strong></summary>
 
-Add to `.opencode.json`:
+Add to `~/.config/opencode/opencode.json` (inside the `"mcp"` key):
 ```json
 {
-  "mcpServers": {
+  "mcp": {
     "sdd-hoffy": {
-      "command": "sdd-hoffy",
-      "args": ["serve"]
+      "type": "local",
+      "command": ["sdd-hoffy", "serve"],
+      "enabled": true
     }
   }
 }

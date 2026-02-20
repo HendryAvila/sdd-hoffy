@@ -286,8 +286,8 @@ main() {
     printf "  ${BOLD}${GREEN}╚═══════════════════════════════════════════╝${NC}\n"
     printf "\n"
     printf "  ${BOLD}Next: Add SDD-Hoffy to your AI tool's MCP config:${NC}\n\n"
-    printf "  ${DIM}Claude Code (.claude/settings.json), Cursor, OpenCode (.opencode.json),${NC}\n"
-    printf "  ${DIM}VS Code Copilot (.vscode/mcp.json), Gemini CLI:${NC}\n\n"
+    printf "  ${DIM}Claude Code (.claude/settings.json), Cursor, VS Code Copilot (.vscode/mcp.json),${NC}\n"
+    printf "  ${DIM}Gemini CLI:${NC}\n\n"
     printf "  ${CYAN}%s${NC}\n" '{'
     printf "  ${CYAN}%s${NC}\n" '  "mcpServers": {'
     printf "  ${CYAN}%s${NC}\n" '    "sdd-hoffy": {'
@@ -295,6 +295,13 @@ main() {
     printf "  ${CYAN}%s${NC}\n" '      "args": ["serve"]'
     printf "  ${CYAN}%s${NC}\n" '    }'
     printf "  ${CYAN}%s${NC}\n" '  }'
+    printf "  ${CYAN}%s${NC}\n" '}'
+    printf "\n"
+    printf "  ${DIM}OpenCode (~/.config/opencode/opencode.json, inside the \"mcp\" key):${NC}\n\n"
+    printf "  ${CYAN}%s${NC}\n" '"sdd-hoffy": {'
+    printf "  ${CYAN}%s${NC}\n" '  "type": "local",'
+    printf "  ${CYAN}%s${NC}\n" '  "command": ["sdd-hoffy", "serve"],'
+    printf "  ${CYAN}%s${NC}\n" '  "enabled": true'
     printf "  ${CYAN}%s${NC}\n" '}'
     printf "\n"
     printf "  ${BOLD}What's next?${NC}\n\n"
