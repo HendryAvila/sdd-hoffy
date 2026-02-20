@@ -21,13 +21,26 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 || os.Args[1] != "serve" {
+	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
 	}
 
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	switch os.Args[1] {
+	case "serve":
+		if err := run(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	case "--help", "-h", "help":
+		printUsage()
+		os.Exit(0)
+	case "--version", "-v", "version":
+		fmt.Printf("sdd-hoffy v%s\n", sddserver.Version)
+		os.Exit(0)
+	default:
+		fmt.Fprintf(os.Stderr, "Unknown command: %s\n\n", os.Args[1])
+		printUsage()
 		os.Exit(1)
 	}
 }
