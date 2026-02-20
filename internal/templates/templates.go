@@ -20,6 +20,8 @@ const (
 	Proposal       = "proposal.md.tmpl"
 	Requirements   = "requirements.md.tmpl"
 	Clarifications = "clarifications.md.tmpl"
+	Design         = "design.md.tmpl"
+	Tasks          = "tasks.md.tmpl"
 )
 
 // Renderer renders markdown templates with provided data.
@@ -86,4 +88,27 @@ type ClarificationsData struct {
 	Threshold    int
 	Status       string
 	Rounds       string
+}
+
+// DesignData holds the data for rendering a technical design document.
+type DesignData struct {
+	Name                 string
+	ArchitectureOverview string
+	TechStack            string
+	Components           string
+	APIContracts         string
+	DataModel            string
+	Infrastructure       string
+	Security             string
+	DesignDecisions      string
+}
+
+// TasksData holds the data for rendering an implementation task breakdown.
+type TasksData struct {
+	Name               string
+	TotalTasks         string
+	EstimatedEffort    string
+	Tasks              string
+	DependencyGraph    string
+	AcceptanceCriteria string
 }

@@ -984,9 +984,9 @@ func TestNextStepGuidance(t *testing.T) {
 		{config.StagePropose, "sdd_create_proposal"},
 		{config.StageSpecify, "sdd_generate_requirements"},
 		{config.StageClarify, "sdd_clarify"},
-		{config.StageDesign, "coming in v2"},
-		{config.StageTasks, "coming in v2"},
-		{config.StageValidate, "coming in v2"},
+		{config.StageDesign, "sdd_create_design"},
+		{config.StageTasks, "sdd_create_tasks"},
+		{config.StageValidate, "sdd_validate"},
 	}
 
 	for _, tt := range tests {
@@ -1021,4 +1021,711 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// --- DesignTool ---
+
+func TestDesignTool_Handle_Success(t *testing.T) {
+	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageDesign)
+	defer cleanup()
+
+	// Write requirements (required by design).
+	reqPath := config.StagePath(tmpDir, config.StageSpecify)
+	if err := writeStageFile(reqPath, "# Requirements\n\n- FR-001: Users can sign up"); err != nil {
+		t.Fatalf("write requirements: %v", err)
+	}
+
+	store := config.NewFileStore()
+	renderer, _ := templates.NewRenderer()
+	tool := NewDesignTool(store, renderer)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"architecture_overview": "A modular monolith using Clean Architecture with 3 layers",
+		"tech_stack":            "- **Runtime**: Node.js 20 LTS\n- **Database**: PostgreSQL 16",
+		"components":            "### AuthModule\n- **Responsibility**: User registration, login\n- **Covers**: FR-001",
+		"data_model":            "### User\n| Field | Type |\n|-------|------|\n| id | UUID |",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	if isErrorResult(result) {
+		t.Fatalf("expected success, got error: %s", getResultText(result))
+	}
+
+	text := getResultText(result)
+	if !strings.Contains(text, "Technical Design Created") {
+		t.Error("result should contain 'Technical Design Created'")
+	}
+	if !strings.Contains(text, "Clean Architecture") {
+		t.Error("result should contain the architecture overview content")
+	}
+	if !strings.Contains(text, "AuthModule") {
+		t.Error("result should contain component content")
+	}
+}
+
+func TestDesignTool_Handle_MissingRequiredFields(t *testing.T) {
+	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageDesign)
+	defer cleanup()
+
+	reqPath := config.StagePath(tmpDir, config.StageSpecify)
+	if err := writeStageFile(reqPath, "# Requirements\n\nSome content."); err != nil {
+		t.Fatalf("write requirements: %v", err)
+	}
+
+	store := config.NewFileStore()
+	renderer, _ := templates.NewRenderer()
+	tool := NewDesignTool(store, renderer)
+
+	tests := []struct {
+		name   string
+		args   map[string]interface{}
+		errMsg string
+	}{
+		{
+			name:   "missing architecture_overview",
+			args:   map[string]interface{}{"tech_stack": "node", "components": "auth", "data_model": "users"},
+			errMsg: "architecture_overview",
+		},
+		{
+			name:   "missing tech_stack",
+			args:   map[string]interface{}{"architecture_overview": "monolith", "components": "auth", "data_model": "users"},
+			errMsg: "tech_stack",
+		},
+		{
+			name:   "missing components",
+			args:   map[string]interface{}{"architecture_overview": "monolith", "tech_stack": "node", "data_model": "users"},
+			errMsg: "components",
+		},
+		{
+			name:   "missing data_model",
+			args:   map[string]interface{}{"architecture_overview": "monolith", "tech_stack": "node", "components": "auth"},
+			errMsg: "data_model",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := mcp.CallToolRequest{}
+			req.Params.Arguments = tt.args
+
+			result, err := tool.Handle(context.Background(), req)
+			if err != nil {
+				t.Fatalf("Handle failed: %v", err)
+			}
+			if !isErrorResult(result) {
+				t.Error("should return error when required field is missing")
+			}
+			text := getResultText(result)
+			if !strings.Contains(text, tt.errMsg) {
+				t.Errorf("error should mention '%s': %s", tt.errMsg, text)
+			}
+		})
+	}
+}
+
+func TestDesignTool_Handle_WrongStage(t *testing.T) {
+	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageClarify)
+	defer cleanup()
+
+	store := config.NewFileStore()
+	renderer, _ := templates.NewRenderer()
+	tool := NewDesignTool(store, renderer)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"architecture_overview": "monolith",
+		"tech_stack":            "node",
+		"components":            "auth",
+		"data_model":            "users",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+	if !isErrorResult(result) {
+		t.Error("should return error when at wrong stage")
+	}
+	text := getResultText(result)
+	if !strings.Contains(text, "wrong pipeline stage") {
+		t.Errorf("error should mention wrong stage: %s", text)
+	}
+}
+
+func TestDesignTool_Handle_EmptyRequirements(t *testing.T) {
+	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageDesign)
+	defer cleanup()
+
+	store := config.NewFileStore()
+	renderer, _ := templates.NewRenderer()
+	tool := NewDesignTool(store, renderer)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"architecture_overview": "monolith",
+		"tech_stack":            "node",
+		"components":            "auth",
+		"data_model":            "users",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+	if !isErrorResult(result) {
+		t.Error("should return error when requirements are empty")
+	}
+}
+
+func TestDesignTool_Handle_AdvancesPipeline(t *testing.T) {
+	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageDesign)
+	defer cleanup()
+
+	reqPath := config.StagePath(tmpDir, config.StageSpecify)
+	if err := writeStageFile(reqPath, "# Requirements\n\nSome content."); err != nil {
+		t.Fatalf("write requirements: %v", err)
+	}
+
+	store := config.NewFileStore()
+	renderer, _ := templates.NewRenderer()
+	tool := NewDesignTool(store, renderer)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"architecture_overview": "Microservices with API gateway",
+		"tech_stack":            "Go + PostgreSQL",
+		"components":            "AuthService, UserService",
+		"data_model":            "User table with email, password_hash",
+	}
+
+	_, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	cfg, _ := store.Load(tmpDir)
+	if cfg.CurrentStage != config.StageTasks {
+		t.Errorf("stage should be tasks after design, got: %s", cfg.CurrentStage)
+	}
+}
+
+func TestDesignTool_Handle_OptionalFieldsDefault(t *testing.T) {
+	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageDesign)
+	defer cleanup()
+
+	reqPath := config.StagePath(tmpDir, config.StageSpecify)
+	if err := writeStageFile(reqPath, "# Requirements\n\nSome content."); err != nil {
+		t.Fatalf("write requirements: %v", err)
+	}
+
+	store := config.NewFileStore()
+	renderer, _ := templates.NewRenderer()
+	tool := NewDesignTool(store, renderer)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"architecture_overview": "Monolith",
+		"tech_stack":            "Python + Django",
+		"components":            "AuthModule",
+		"data_model":            "User model",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	text := getResultText(result)
+	if !strings.Contains(text, "Not yet defined") {
+		t.Error("optional empty fields should show default text")
+	}
+}
+
+// --- TasksTool ---
+
+func TestTasksTool_Handle_Success(t *testing.T) {
+	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageTasks)
+	defer cleanup()
+
+	// Write design document (required by tasks).
+	designPath := config.StagePath(tmpDir, config.StageDesign)
+	if err := writeStageFile(designPath, "# Design\n\n## Architecture\nMonolith with Clean Architecture"); err != nil {
+		t.Fatalf("write design: %v", err)
+	}
+
+	store := config.NewFileStore()
+	renderer, _ := templates.NewRenderer()
+	tool := NewTasksTool(store, renderer)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"total_tasks":      "5",
+		"estimated_effort": "3-4 days for a single developer",
+		"tasks":            "### TASK-001: Set up project scaffolding\n**Component**: ProjectSetup\n**Covers**: Infrastructure\n**Dependencies**: None",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	if isErrorResult(result) {
+		t.Fatalf("expected success, got error: %s", getResultText(result))
+	}
+
+	text := getResultText(result)
+	if !strings.Contains(text, "Implementation Tasks Created") {
+		t.Error("result should contain 'Implementation Tasks Created'")
+	}
+	if !strings.Contains(text, "TASK-001") {
+		t.Error("result should contain task IDs")
+	}
+}
+
+func TestTasksTool_Handle_MissingRequiredFields(t *testing.T) {
+	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageTasks)
+	defer cleanup()
+
+	designPath := config.StagePath(tmpDir, config.StageDesign)
+	if err := writeStageFile(designPath, "# Design\n\nSome content."); err != nil {
+		t.Fatalf("write design: %v", err)
+	}
+
+	store := config.NewFileStore()
+	renderer, _ := templates.NewRenderer()
+	tool := NewTasksTool(store, renderer)
+
+	tests := []struct {
+		name   string
+		args   map[string]interface{}
+		errMsg string
+	}{
+		{
+			name:   "missing total_tasks",
+			args:   map[string]interface{}{"estimated_effort": "3 days", "tasks": "TASK-001"},
+			errMsg: "total_tasks",
+		},
+		{
+			name:   "missing estimated_effort",
+			args:   map[string]interface{}{"total_tasks": "5", "tasks": "TASK-001"},
+			errMsg: "estimated_effort",
+		},
+		{
+			name:   "missing tasks",
+			args:   map[string]interface{}{"total_tasks": "5", "estimated_effort": "3 days"},
+			errMsg: "tasks",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := mcp.CallToolRequest{}
+			req.Params.Arguments = tt.args
+
+			result, err := tool.Handle(context.Background(), req)
+			if err != nil {
+				t.Fatalf("Handle failed: %v", err)
+			}
+			if !isErrorResult(result) {
+				t.Error("should return error when required field is missing")
+			}
+			text := getResultText(result)
+			if !strings.Contains(text, tt.errMsg) {
+				t.Errorf("error should mention '%s': %s", tt.errMsg, text)
+			}
+		})
+	}
+}
+
+func TestTasksTool_Handle_WrongStage(t *testing.T) {
+	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageDesign)
+	defer cleanup()
+
+	store := config.NewFileStore()
+	renderer, _ := templates.NewRenderer()
+	tool := NewTasksTool(store, renderer)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"total_tasks":      "5",
+		"estimated_effort": "3 days",
+		"tasks":            "TASK-001",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+	if !isErrorResult(result) {
+		t.Error("should return error when at wrong stage")
+	}
+}
+
+func TestTasksTool_Handle_EmptyDesign(t *testing.T) {
+	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageTasks)
+	defer cleanup()
+
+	store := config.NewFileStore()
+	renderer, _ := templates.NewRenderer()
+	tool := NewTasksTool(store, renderer)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"total_tasks":      "5",
+		"estimated_effort": "3 days",
+		"tasks":            "TASK-001",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+	if !isErrorResult(result) {
+		t.Error("should return error when design is empty")
+	}
+}
+
+func TestTasksTool_Handle_AdvancesPipeline(t *testing.T) {
+	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageTasks)
+	defer cleanup()
+
+	designPath := config.StagePath(tmpDir, config.StageDesign)
+	if err := writeStageFile(designPath, "# Design\n\nSome content."); err != nil {
+		t.Fatalf("write design: %v", err)
+	}
+
+	store := config.NewFileStore()
+	renderer, _ := templates.NewRenderer()
+	tool := NewTasksTool(store, renderer)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"total_tasks":      "3",
+		"estimated_effort": "1 week",
+		"tasks":            "### TASK-001: Setup\n### TASK-002: Auth\n### TASK-003: Deploy",
+	}
+
+	_, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	cfg, _ := store.Load(tmpDir)
+	if cfg.CurrentStage != config.StageValidate {
+		t.Errorf("stage should be validate after tasks, got: %s", cfg.CurrentStage)
+	}
+}
+
+// --- ValidateTool ---
+
+// setupValidateProject creates a project at validate stage with all artifacts.
+func setupValidateProject(t *testing.T) (string, func()) {
+	t.Helper()
+	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageValidate)
+
+	// Write all required artifacts.
+	artifacts := map[config.Stage]string{
+		config.StagePropose: "# Proposal\n\nA test proposal.",
+		config.StageSpecify: "# Requirements\n\n- FR-001: Users can sign up",
+		config.StageClarify: "# Clarifications\n\nAll clarified.",
+		config.StageDesign:  "# Design\n\nMonolith with Clean Architecture.",
+		config.StageTasks:   "# Tasks\n\n### TASK-001: Setup project",
+	}
+
+	for stage, content := range artifacts {
+		path := config.StagePath(tmpDir, stage)
+		if err := writeStageFile(path, content); err != nil {
+			cleanup()
+			t.Fatalf("write %s: %v", stage, err)
+		}
+	}
+
+	return tmpDir, cleanup
+}
+
+func TestValidateTool_Handle_Pass(t *testing.T) {
+	_, cleanup := setupValidateProject(t)
+	defer cleanup()
+
+	store := config.NewFileStore()
+	tool := NewValidateTool(store)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"requirements_coverage": "**Covered (1/1)**:\n- FR-001 → TASK-001",
+		"component_coverage":    "**Covered**:\n- AuthModule → TASK-001",
+		"consistency_issues":    "_None found._",
+		"verdict":               "PASS",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	if isErrorResult(result) {
+		t.Fatalf("expected success, got error: %s", getResultText(result))
+	}
+
+	text := getResultText(result)
+	if !strings.Contains(text, "PASS") {
+		t.Error("result should contain 'PASS'")
+	}
+	if !strings.Contains(text, "SDD Pipeline Complete") {
+		t.Error("result should contain 'SDD Pipeline Complete' for PASS verdict")
+	}
+}
+
+func TestValidateTool_Handle_PassWithWarnings(t *testing.T) {
+	_, cleanup := setupValidateProject(t)
+	defer cleanup()
+
+	store := config.NewFileStore()
+	tool := NewValidateTool(store)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"requirements_coverage": "**Covered (1/1)**:\n- FR-001 → TASK-001",
+		"component_coverage":    "**Covered**:\n- AuthModule → TASK-001",
+		"consistency_issues":    "1. Minor: No monitoring tasks defined",
+		"verdict":               "PASS_WITH_WARNINGS",
+		"recommendations":       "Add monitoring as tech debt for v1.1",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	text := getResultText(result)
+	if !strings.Contains(text, "PASS_WITH_WARNINGS") {
+		t.Error("result should contain 'PASS_WITH_WARNINGS'")
+	}
+	if !strings.Contains(text, "with warnings") {
+		t.Error("result should contain warning message")
+	}
+}
+
+func TestValidateTool_Handle_Fail(t *testing.T) {
+	_, cleanup := setupValidateProject(t)
+	defer cleanup()
+
+	store := config.NewFileStore()
+	tool := NewValidateTool(store)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"requirements_coverage": "**Uncovered (3/5)**:\n- FR-002, FR-003, FR-005 have no tasks",
+		"component_coverage":    "**Uncovered**:\n- EmailModule has no tasks",
+		"consistency_issues":    "1. Critical: Design says PostgreSQL but tasks mention MongoDB",
+		"verdict":               "FAIL",
+		"recommendations":       "1. Revisit design to fix database choice\n2. Add missing tasks",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	text := getResultText(result)
+	if !strings.Contains(text, "FAIL") {
+		t.Error("result should contain 'FAIL'")
+	}
+	if !strings.Contains(text, "Validation Failed") {
+		t.Error("result should contain 'Validation Failed' for FAIL verdict")
+	}
+}
+
+func TestValidateTool_Handle_MissingRequiredFields(t *testing.T) {
+	_, cleanup := setupValidateProject(t)
+	defer cleanup()
+
+	store := config.NewFileStore()
+	tool := NewValidateTool(store)
+
+	tests := []struct {
+		name   string
+		args   map[string]interface{}
+		errMsg string
+	}{
+		{
+			name:   "missing requirements_coverage",
+			args:   map[string]interface{}{"component_coverage": "ok", "consistency_issues": "none", "verdict": "PASS"},
+			errMsg: "requirements_coverage",
+		},
+		{
+			name:   "missing component_coverage",
+			args:   map[string]interface{}{"requirements_coverage": "ok", "consistency_issues": "none", "verdict": "PASS"},
+			errMsg: "component_coverage",
+		},
+		{
+			name:   "missing consistency_issues",
+			args:   map[string]interface{}{"requirements_coverage": "ok", "component_coverage": "ok", "verdict": "PASS"},
+			errMsg: "consistency_issues",
+		},
+		{
+			name:   "missing verdict",
+			args:   map[string]interface{}{"requirements_coverage": "ok", "component_coverage": "ok", "consistency_issues": "none"},
+			errMsg: "verdict",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := mcp.CallToolRequest{}
+			req.Params.Arguments = tt.args
+
+			result, err := tool.Handle(context.Background(), req)
+			if err != nil {
+				t.Fatalf("Handle failed: %v", err)
+			}
+			if !isErrorResult(result) {
+				t.Error("should return error when required field is missing")
+			}
+			text := getResultText(result)
+			if !strings.Contains(text, tt.errMsg) {
+				t.Errorf("error should mention '%s': %s", tt.errMsg, text)
+			}
+		})
+	}
+}
+
+func TestValidateTool_Handle_InvalidVerdict(t *testing.T) {
+	_, cleanup := setupValidateProject(t)
+	defer cleanup()
+
+	store := config.NewFileStore()
+	tool := NewValidateTool(store)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"requirements_coverage": "all covered",
+		"component_coverage":    "all covered",
+		"consistency_issues":    "none",
+		"verdict":               "MAYBE",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+	if !isErrorResult(result) {
+		t.Error("should return error for invalid verdict")
+	}
+	text := getResultText(result)
+	if !strings.Contains(text, "PASS") {
+		t.Errorf("error should mention valid options: %s", text)
+	}
+}
+
+func TestValidateTool_Handle_WrongStage(t *testing.T) {
+	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageTasks)
+	defer cleanup()
+
+	store := config.NewFileStore()
+	tool := NewValidateTool(store)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"requirements_coverage": "ok",
+		"component_coverage":    "ok",
+		"consistency_issues":    "none",
+		"verdict":               "PASS",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+	if !isErrorResult(result) {
+		t.Error("should return error when at wrong stage")
+	}
+}
+
+func TestValidateTool_Handle_MissingArtifacts(t *testing.T) {
+	// Set up at validate stage but DON'T write all artifacts.
+	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageValidate)
+	defer cleanup()
+
+	store := config.NewFileStore()
+	tool := NewValidateTool(store)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"requirements_coverage": "ok",
+		"component_coverage":    "ok",
+		"consistency_issues":    "none",
+		"verdict":               "PASS",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+	if !isErrorResult(result) {
+		t.Error("should return error when artifacts are missing")
+	}
+}
+
+func TestValidateTool_Handle_CompletesStage(t *testing.T) {
+	tmpDir, cleanup := setupValidateProject(t)
+	defer cleanup()
+
+	store := config.NewFileStore()
+	tool := NewValidateTool(store)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"requirements_coverage": "All covered",
+		"component_coverage":    "All covered",
+		"consistency_issues":    "_None found._",
+		"verdict":               "PASS",
+	}
+
+	_, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	// Verify the stage is marked completed (not advanced — it's the last stage).
+	cfg, _ := store.Load(tmpDir)
+	status := cfg.StageStatus[config.StageValidate]
+	if status.Status != "completed" {
+		t.Errorf("validate stage should be completed, got: %s", status.Status)
+	}
+}
+
+func TestValidateTool_Handle_VerdictCaseInsensitive(t *testing.T) {
+	_, cleanup := setupValidateProject(t)
+	defer cleanup()
+
+	store := config.NewFileStore()
+	tool := NewValidateTool(store)
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"requirements_coverage": "All covered",
+		"component_coverage":    "All covered",
+		"consistency_issues":    "_None found._",
+		"verdict":               "pass",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	if isErrorResult(result) {
+		t.Fatalf("should accept lowercase verdict, got error: %s", getResultText(result))
+	}
+
+	text := getResultText(result)
+	if !strings.Contains(text, "PASS") {
+		t.Error("result should normalize verdict to uppercase")
+	}
 }

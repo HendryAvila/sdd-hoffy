@@ -22,13 +22,73 @@ The root cause? Ambiguity. When you tell an AI "build me an app", it fills in th
 
 ## The Solution: Spec-Driven Development
 
-SDD-Hoffy solves this with a simple pipeline:
+SDD-Hoffy solves this with a complete 7-stage pipeline:
 
 ```
-Vague Idea → Structured Proposal → Formal Requirements → Clarity Gate → Ready for AI
+Vague Idea → Proposal → Requirements → Clarity Gate → Architecture → Tasks → Validation → Ready for AI
 ```
 
-The **Clarity Gate** is the core innovation. It's a quality check that analyzes your requirements across 8 dimensions and blocks progress until ambiguities are resolved. The AI can't skip ahead to coding until your specs are clear enough.
+The **Clarity Gate** is the core innovation. It analyzes your requirements across 8 dimensions and blocks progress until ambiguities are resolved. The AI can't skip ahead to architecture until your specs are clear enough.
+
+After the gate, SDD-Hoffy continues into **technical design**, **atomic task breakdown**, and a **cross-artifact validation** that catches inconsistencies before a single line of code is written.
+
+---
+
+## SDD-Hoffy vs Plan Mode
+
+If you use Cursor, Claude Code, Codex, or similar tools, you've probably used `/plan mode` or something like it. So what's the difference?
+
+**They operate at different layers:**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   WHAT to build                         │
+│                                                         │
+│  SDD-Hoffy (Requirements Engineering Layer)             │
+│  ─────────────────────────────────────────               │
+│  "WHO are the users? WHAT must the system do?           │
+│   What's out of scope? What are the NFRs?               │
+│   What architecture addresses these requirements?       │
+│   What tasks cover the full design?"                    │
+│                                                         │
+├─────────────────────────────────────────────────────────┤
+│                   HOW to build it                       │
+│                                                         │
+│  /plan mode (Implementation Layer)                      │
+│  ─────────────────────────────────                      │
+│  "What files do I create? What functions do I write?    │
+│   What tests do I need? What's the PR structure?"       │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+**SDD-Hoffy is the architect. Plan mode is the contractor.**
+
+An architect decides _what_ the building needs: load-bearing walls, plumbing routes, electrical capacity, fire exits. A contractor decides _how_ to build it: which tools, what order, which crew. You wouldn't hire a contractor without blueprints — and you shouldn't use plan mode without specifications.
+
+### What each one does
+
+| Concern | SDD-Hoffy | Plan Mode |
+|---|---|---|
+| **"Who are the users?"** | Defines 2-3 personas with needs | Doesn't ask |
+| **"What's out of scope?"** | Explicit exclusion list | Doesn't track |
+| **"Is this requirement ambiguous?"** | Clarity Gate with 8-dimension scoring | No check |
+| **"What architecture fits?"** | Full design doc with ADRs and rationale | Infers from code |
+| **"Are all requirements covered?"** | Cross-artifact validation report | No traceability |
+| **"What files should I change?"** | Not its job | This is what it does |
+| **"What's the implementation order?"** | Not its job | This is what it does |
+
+### The workflow together
+
+```
+1. Run SDD-Hoffy    →  Produce: proposal.md, requirements.md, design.md, tasks.md
+2. Open plan mode   →  Feed it the SDD artifacts as context
+3. Execute          →  AI implements with clear specs, minimal hallucination
+```
+
+SDD-Hoffy doesn't replace plan mode. It makes plan mode **dramatically better** by giving it unambiguous input.
+
+---
 
 ## What Makes SDD-Hoffy Different
 
@@ -39,6 +99,7 @@ The **Clarity Gate** is the core innovation. It's a quality check that analyzes 
 | **Compatibility** | Claude Code, Gemini CLI, Codex, Cursor, VS Code Copilot, OpenCode | Single tool only |
 | **Install** | One binary, 3 lines of config | npm/pip, dependencies |
 | **Dual mode** | Guided (beginners) + Expert (devs) | One size fits all |
+| **Full pipeline** | Idea → Specs → Architecture → Tasks → Validation | Specs only |
 
 ---
 
@@ -161,7 +222,7 @@ Just talk to your AI tool:
 
 > "I want to start a new SDD project for a task management app"
 
-The AI will use SDD-Hoffy's tools to guide you through the pipeline. Or use the prompt directly:
+The AI will use SDD-Hoffy's tools to guide you through the full pipeline. Or use the prompt directly:
 
 > `/sdd-start`
 
@@ -169,36 +230,40 @@ The AI will use SDD-Hoffy's tools to guide you through the pipeline. Or use the 
 
 ## The SDD Pipeline
 
-SDD-Hoffy follows a sequential pipeline. Each stage builds on the previous one, and you can't skip ahead until the current stage is complete.
+SDD-Hoffy follows a sequential 7-stage pipeline. Each stage builds on the previous one, and you can't skip ahead until the current stage is complete.
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    SDD Pipeline                      │
-│                                                      │
-│  ┌──────┐   ┌─────────┐   ┌─────────┐   ┌────────┐ │
-│  │ INIT │──▶│ PROPOSE │──▶│ SPECIFY │──▶│CLARIFY │ │
-│  └──────┘   └─────────┘   └─────────┘   └────────┘ │
-│                                             │        │
-│                                     ┌───────┘        │
-│                                     ▼                │
-│                              ┌────────────┐          │
-│                              │Clarity Gate│          │
-│                              │Score >= 70?│          │
-│                              └──────┬─────┘          │
-│                            No │     │ Yes            │
-│                               │     ▼                │
-│                            ◀──┘  ┌────────┐          │
-│                                  │ DESIGN │ (v2)     │
-│                                  └────┬───┘          │
-│                                       ▼              │
-│                                  ┌────────┐          │
-│                                  │ TASKS  │ (v2)     │
-│                                  └────┬───┘          │
-│                                       ▼              │
-│                                  ┌──────────┐        │
-│                                  │ VALIDATE │ (v2)   │
-│                                  └──────────┘        │
-└─────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                     SDD Pipeline                          │
+│                                                           │
+│  ┌──────┐   ┌─────────┐   ┌─────────┐   ┌────────────┐  │
+│  │ INIT │──▶│ PROPOSE │──▶│ SPECIFY │──▶│  CLARIFY   │  │
+│  └──────┘   └─────────┘   └─────────┘   └─────┬──────┘  │
+│                                                │          │
+│                                        ┌───────┘          │
+│                                        ▼                  │
+│                                 ┌────────────┐            │
+│                                 │Clarity Gate│            │
+│                                 │Score >= 70?│            │
+│                                 └──────┬─────┘            │
+│                               No │     │ Yes              │
+│                                  │     ▼                  │
+│                               ◀──┘  ┌────────┐           │
+│                                     │ DESIGN │           │
+│                                     └────┬───┘           │
+│                                          ▼               │
+│                                     ┌────────┐           │
+│                                     │ TASKS  │           │
+│                                     └────┬───┘           │
+│                                          ▼               │
+│                                     ┌──────────┐         │
+│                                     │ VALIDATE │         │
+│                                     └──────────┘         │
+│                                          │               │
+│                                          ▼               │
+│                                  Ready for /plan         │
+│                                  mode & coding           │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ### Stage 0: Init
@@ -223,7 +288,7 @@ Extract formal requirements from the proposal using [MoSCoW prioritization](http
 Each requirement gets a unique ID (FR-001, NFR-001) for traceability.
 
 ### Stage 3: Clarify (The Clarity Gate)
-This is where the magic happens. SDD-Hoffy analyzes your requirements across **8 dimensions**:
+The core innovation. SDD-Hoffy analyzes your requirements across **8 dimensions**:
 
 | Dimension | What it checks |
 |---|---|
@@ -240,8 +305,33 @@ The pipeline **blocks** until the clarity score meets the threshold:
 - **Guided mode:** 70/100 (more thoroughness for non-technical users)
 - **Expert mode:** 50/100 (developers can handle more ambiguity)
 
-### Stages 4-6: Design, Tasks, Validate (Coming in v2)
-Technical architecture, atomic task breakdown, and cross-artifact consistency checks.
+### Stage 4: Design
+Create a technical architecture document grounded in your validated requirements:
+- **Architecture Overview** — Pattern choice (monolith, microservices, serverless) with rationale
+- **Tech Stack** — Every technology choice justified against requirements
+- **Components** — Modules with responsibilities, boundaries, and requirement traceability (FR-XXX)
+- **API Contracts** — Endpoint definitions, schemas, error codes
+- **Data Model** — Schema, relationships, constraints, indexes
+- **Infrastructure** — Deployment strategy, CI/CD, environments
+- **Security** — Auth strategy, encryption, rate limiting (addressing NFRs)
+- **Design Decisions** — ADRs with alternatives considered and why they were rejected
+
+### Stage 5: Tasks
+Break the design into atomic, AI-ready implementation tasks:
+- **Each task** has a unique ID (TASK-001), maps to requirements (FR-XXX), identifies affected components, lists dependencies, and includes acceptance criteria
+- **Dependency graph** shows what can be parallelized and what's sequential
+- **Effort estimate** for the full implementation
+- **Global acceptance criteria** — project-wide quality gates (coverage, linting, testing)
+
+### Stage 6: Validate
+Cross-artifact consistency check — the final quality gate:
+- **Requirements coverage** — Is every FR-XXX/NFR-XXX covered by at least one task?
+- **Component coverage** — Does every component in the design have tasks assigned?
+- **Consistency check** — Do tasks match the design? Does the design match the requirements?
+- **Risk assessment** — What could go wrong during implementation?
+- **Verdict** — PASS, PASS_WITH_WARNINGS, or FAIL (with actionable recommendations)
+
+If validation fails, SDD-Hoffy tells you exactly which stage to revisit and what to fix.
 
 ---
 
@@ -271,13 +361,16 @@ sdd_init_project(name: "my-app", description: "...", mode: "guided")
 
 ## Available Tools
 
-| Tool | Description |
-|---|---|
-| `sdd_init_project` | Initialize SDD project structure |
-| `sdd_create_proposal` | Generate a structured proposal from your idea |
-| `sdd_generate_requirements` | Extract formal requirements from the proposal |
-| `sdd_clarify` | Run the Clarity Gate analysis |
-| `sdd_get_context` | View current project state and artifacts |
+| Tool | Stage | Description |
+|---|---|---|
+| `sdd_init_project` | 0 | Initialize SDD project structure |
+| `sdd_create_proposal` | 1 | Save a structured proposal from your idea |
+| `sdd_generate_requirements` | 2 | Save formal requirements from the proposal |
+| `sdd_clarify` | 3 | Run the Clarity Gate analysis |
+| `sdd_create_design` | 4 | Save the technical architecture document |
+| `sdd_create_tasks` | 5 | Save the atomic implementation task breakdown |
+| `sdd_validate` | 6 | Run cross-artifact consistency check |
+| `sdd_get_context` | Any | View current project state and artifacts |
 
 ## Available Prompts
 
@@ -295,9 +388,12 @@ SDD-Hoffy creates a `sdd/` directory in your project:
 ```
 sdd/
 ├── sdd.json              # Project config (mode, stage, clarity score)
-├── proposal.md           # Your structured proposal
-├── requirements.md       # Formal requirements with IDs
-├── clarifications.md     # Clarity Gate Q&A log
+├── proposal.md           # Stage 1: Structured proposal
+├── requirements.md       # Stage 2: Formal requirements with MoSCoW IDs
+├── clarifications.md     # Stage 3: Clarity Gate Q&A log
+├── design.md             # Stage 4: Technical architecture & ADRs
+├── tasks.md              # Stage 5: Atomic implementation tasks
+├── validation.md         # Stage 6: Cross-artifact consistency report
 └── history/              # Archived completed changes
 ```
 
@@ -305,6 +401,7 @@ These files are designed to be:
 - **Human-readable** — Clear markdown that anyone can understand
 - **AI-consumable** — Structured enough that AI tools can parse and follow them
 - **Version-controllable** — Plain text files that live in your repo
+- **Feedable to plan mode** — Drop them as context into any AI coding tool
 
 ---
 
@@ -350,10 +447,13 @@ make lint
 
 ### Areas for Contribution
 
-- **Stage 4-6 implementation** — Design, Tasks, and Validate stages
 - **More clarity dimensions** — Domain-specific dimensions (mobile, API, data pipeline, etc.)
 - **Template improvements** — Better guided mode templates and examples
 - **Host-specific guides** — Documentation for configuring in specific tools
+- **Streamable HTTP transport** — Remote server deployment support
+- **Template customization** — Bring your own templates
+- **Project presets** — Web app, API, CLI, mobile starter configs
+- **Export formats** — Jira, Linear, GitHub Issues integration
 - **i18n** — Support for non-English specs
 - **Tests** — Unit and integration tests
 
@@ -361,14 +461,12 @@ make lint
 
 ## Roadmap
 
-- [x] MVP: Init, Propose, Specify, Clarify pipeline
+- [x] Full 7-stage pipeline: Init, Propose, Specify, Clarify, Design, Tasks, Validate
 - [x] Dual mode (Guided/Expert)
 - [x] MCP server with stdio transport
 - [x] CI/CD pipeline (GitHub Actions + GoReleaser)
 - [x] Multi-platform binary releases (Linux, macOS, Windows)
-- [ ] Stage 4: Design (technical architecture generation)
-- [ ] Stage 5: Tasks (atomic task breakdown)
-- [ ] Stage 6: Validate (cross-artifact consistency)
+- [x] Cross-artifact validation with PASS/WARN/FAIL verdicts
 - [ ] Streamable HTTP transport (for remote server deployment)
 - [ ] Template customization (bring your own templates)
 - [ ] Project presets (web app, API, CLI, mobile, etc.)

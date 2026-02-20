@@ -155,11 +155,12 @@ func StageFilename(stage Stage) string {
 
 // stageFilenames maps stages to their output filenames.
 var stageFilenames = map[Stage]string{
-	StagePropose: "proposal.md",
-	StageSpecify: "requirements.md",
-	StageClarify: "clarifications.md",
-	StageDesign:  "design.md",
-	StageTasks:   "tasks.md",
+	StagePropose:  "proposal.md",
+	StageSpecify:  "requirements.md",
+	StageClarify:  "clarifications.md",
+	StageDesign:   "design.md",
+	StageTasks:    "tasks.md",
+	StageValidate: "validation.md",
 }
 
 // --- Persistence (Open/Closed: extend via interfaces, not modification) ---

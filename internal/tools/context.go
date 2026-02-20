@@ -129,6 +129,7 @@ func (t *ContextTool) buildOverview(cfg *config.ProjectConfig, projectRoot strin
 		config.StageClarify,
 		config.StageDesign,
 		config.StageTasks,
+		config.StageValidate,
 	}
 	for _, stage := range artifactStages {
 		path := config.StagePath(projectRoot, stage)
@@ -180,11 +181,17 @@ func nextStepGuidance(cfg *config.ProjectConfig) string {
 			cfg.ClarityScore, clarityThresholdForMode(cfg.Mode),
 		)
 	case config.StageDesign:
-		return "Design stage (coming in v2). Your specs are ready for implementation!"
+		return "Use `sdd_create_design` to create the technical architecture document. " +
+			"Read all previous artifacts first (use `sdd_get_context`), then design the system " +
+			"addressing ALL requirements. Include tech stack, components, data model, and key design decisions."
 	case config.StageTasks:
-		return "Tasks stage (coming in v2). Your specs are ready for implementation!"
+		return "Use `sdd_create_tasks` to break the design into atomic implementation tasks. " +
+			"Read the design document first (use `sdd_get_context stage=design`). " +
+			"Each task should have a unique ID, clear scope, requirements covered, and acceptance criteria."
 	case config.StageValidate:
-		return "Validate stage (coming in v2). Your specs are ready for implementation!"
+		return "Use `sdd_validate` to run a cross-artifact consistency check. " +
+			"Read ALL artifacts and verify: requirement coverage, component coverage, " +
+			"consistency between documents, and identify any gaps or risks."
 	default:
 		return "Use `sdd_init_project` to start a new SDD project."
 	}

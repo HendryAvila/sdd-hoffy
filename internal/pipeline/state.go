@@ -131,5 +131,12 @@ func markInProgress(cfg *config.ProjectConfig, stage config.Stage) {
 }
 
 func now() string {
+	return Now()
+}
+
+// Now returns the current UTC time formatted as RFC3339.
+// Exported for use by tools that need to record timestamps
+// consistently with the pipeline's time format.
+func Now() string {
 	return timeNow().UTC().Format("2006-01-02T15:04:05Z07:00")
 }
