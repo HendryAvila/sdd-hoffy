@@ -11,7 +11,7 @@ import (
 )
 
 // SpecifyTool handles the sdd_generate_requirements MCP tool.
-// It extracts formal requirements from the proposal document.
+// It saves formal requirements with content provided by the AI.
 type SpecifyTool struct {
 	store    config.Store
 	renderer templates.Renderer
@@ -26,22 +26,75 @@ func NewSpecifyTool(store config.Store, renderer templates.Renderer) *SpecifyToo
 func (t *SpecifyTool) Definition() mcp.Tool {
 	return mcp.NewTool("sdd_generate_requirements",
 		mcp.WithDescription(
-			"Extract formal requirements from the proposal document. "+
-				"This is Stage 2 of the SDD pipeline. The AI reads the proposal (sdd/proposal.md) "+
-				"and produces structured requirements using MoSCoW prioritization "+
-				"(Must Have, Should Have, Could Have, Won't Have). "+
-				"Each requirement gets a unique ID (FR-001, NFR-001) for traceability. "+
+			"Save formal requirements extracted from the proposal document. "+
+				"This is Stage 2 of the SDD pipeline. "+
+				"IMPORTANT: Before calling this tool, the AI MUST read the proposal (sdd/proposal.md), "+
+				"analyze it, and generate real requirements with MoSCoW prioritization. "+
+				"Pass the ACTUAL requirements content (not placeholders) for each section. "+
+				"Each functional requirement needs a unique ID (FR-001, FR-002...). "+
+				"Each non-functional requirement needs a unique ID (NFR-001, NFR-002...). "+
 				"Requires: sdd_create_proposal must have been run first.",
 		),
-		mcp.WithString("additional_context",
-			mcp.Description("Optional extra context, constraints, or preferences to consider when generating requirements"),
+		mcp.WithString("must_have",
+			mcp.Required(),
+			mcp.Description("Non-negotiable requirements for launch. Use markdown list with IDs. "+
+				"Example: '- **FR-001**: Users can create an account with email and password\\n"+
+				"- **FR-002**: Users can log time entries with project, duration, and description'"),
+		),
+		mcp.WithString("should_have",
+			mcp.Required(),
+			mcp.Description("Important requirements that add significant value but don't block launch. "+
+				"Use markdown list with IDs (continue numbering from must_have). "+
+				"Example: '- **FR-005**: Users can export time entries as CSV'"),
+		),
+		mcp.WithString("could_have",
+			mcp.Description("Nice-to-have features that can wait for a future version. "+
+				"Use markdown list with IDs."),
+		),
+		mcp.WithString("wont_have",
+			mcp.Description("Features explicitly excluded from THIS version. Being explicit prevents scope creep. "+
+				"Use markdown list with IDs."),
+		),
+		mcp.WithString("non_functional",
+			mcp.Required(),
+			mcp.Description("Performance, security, scalability, usability constraints. Use NFR-XXX IDs. "+
+				"Example: '- **NFR-001**: Page load time must be under 2 seconds on 3G\\n"+
+				"- **NFR-002**: All user data must be encrypted at rest'"),
+		),
+		mcp.WithString("constraints",
+			mcp.Description("Technical, business, or regulatory limitations. "+
+				"Example: '- Must run on Node.js 20+\\n- Budget limited to free-tier cloud services'"),
+		),
+		mcp.WithString("assumptions",
+			mcp.Description("What we assume to be true. If these change, requirements change too."),
+		),
+		mcp.WithString("dependencies",
+			mcp.Description("External systems, APIs, services, or teams we depend on."),
 		),
 	)
 }
 
 // Handle processes the sdd_generate_requirements tool call.
 func (t *SpecifyTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	additionalContext := req.GetString("additional_context", "")
+	mustHave := req.GetString("must_have", "")
+	shouldHave := req.GetString("should_have", "")
+	couldHave := req.GetString("could_have", "")
+	wontHave := req.GetString("wont_have", "")
+	nonFunctional := req.GetString("non_functional", "")
+	constraints := req.GetString("constraints", "")
+	assumptions := req.GetString("assumptions", "")
+	dependencies := req.GetString("dependencies", "")
+
+	// Validate required fields.
+	if mustHave == "" {
+		return mcp.NewToolResultError("'must_have' is required — list the non-negotiable requirements"), nil
+	}
+	if shouldHave == "" {
+		return mcp.NewToolResultError("'should_have' is required — list the important-but-not-blocking requirements"), nil
+	}
+	if nonFunctional == "" {
+		return mcp.NewToolResultError("'non_functional' is required — list performance, security, and usability constraints"), nil
+	}
 
 	projectRoot, err := findProjectRoot()
 	if err != nil {
@@ -58,7 +111,7 @@ func (t *SpecifyTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	// Read the proposal to base requirements on.
+	// Verify the proposal exists.
 	proposalPath := config.StagePath(projectRoot, config.StagePropose)
 	proposal, err := readStageFile(proposalPath)
 	if err != nil {
@@ -70,8 +123,35 @@ func (t *SpecifyTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp
 
 	pipeline.MarkInProgress(cfg)
 
-	// Build requirements template data.
-	data := t.buildRequirementsData(cfg, proposal, additionalContext)
+	// Fill optional fields with "None" if empty.
+	if couldHave == "" {
+		couldHave = "_None defined for this version._"
+	}
+	if wontHave == "" {
+		wontHave = "_None defined for this version._"
+	}
+	if constraints == "" {
+		constraints = "_None identified._"
+	}
+	if assumptions == "" {
+		assumptions = "_None identified._"
+	}
+	if dependencies == "" {
+		dependencies = "_None identified._"
+	}
+
+	// Build requirements with REAL content from the AI.
+	data := templates.RequirementsData{
+		Name:          cfg.Name,
+		MustHave:      mustHave,
+		ShouldHave:    shouldHave,
+		CouldHave:     couldHave,
+		WontHave:      wontHave,
+		NonFunctional: nonFunctional,
+		Constraints:   constraints,
+		Assumptions:   assumptions,
+		Dependencies:  dependencies,
+	}
 
 	content, err := t.renderer.Render(templates.Requirements, data)
 	if err != nil {
@@ -100,73 +180,12 @@ func (t *SpecifyTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp
 			"---\n\n"+
 			"## Next Step\n\n"+
 			"Pipeline advanced to **Stage 3: Clarify (Clarity Gate)**.\n\n"+
-			"This is the MOST IMPORTANT stage. The AI will now analyze these requirements "+
-			"for ambiguities and generate clarifying questions.\n\n"+
-			"Use `sdd_clarify` to start the Clarity Gate process. The pipeline cannot proceed "+
-			"until the clarity score reaches the threshold (%d for %s mode).\n\n"+
-			"**Why this matters:** Ambiguous requirements are the #1 cause of AI hallucinations. "+
-			"The clearer your specs, the better AI-generated code will be.",
+			"This is the MOST IMPORTANT stage. Call `sdd_clarify` (without answers) to analyze "+
+			"these requirements for ambiguities. The pipeline cannot proceed until the clarity "+
+			"score reaches %d/100 (%s mode).\n\n"+
+			"**Why this matters:** Ambiguous requirements are the #1 cause of AI hallucinations.",
 		content, pipeline.ClarityThreshold(cfg.Mode), cfg.Mode,
 	)
 
 	return mcp.NewToolResultText(response), nil
-}
-
-// buildRequirementsData creates template data with mode-specific guidance.
-func (t *SpecifyTool) buildRequirementsData(cfg *config.ProjectConfig, proposal, additionalContext string) templates.RequirementsData {
-	data := templates.RequirementsData{
-		Name: cfg.Name,
-	}
-
-	contextNote := ""
-	if additionalContext != "" {
-		contextNote = fmt.Sprintf("\n\n**Additional context:** %s", additionalContext)
-	}
-
-	if cfg.Mode == config.ModeGuided {
-		data.MustHave = fmt.Sprintf(
-			"_Based on the proposal below, list the absolute minimum features needed for this to work.%s_\n\n"+
-				"_Format each requirement as:_\n"+
-				"- **FR-001**: _[Clear, testable requirement]_\n\n"+
-				"_Example:_\n"+
-				"- **FR-001**: Users can create an account with email and password\n"+
-				"- **FR-002**: Users can log time entries with project, duration, and description\n\n"+
-				"---\n\n"+
-				"**Source proposal:**\n\n%s",
-			contextNote, proposal,
-		)
-		data.ShouldHave = "_Nice-to-have features that add significant value but aren't blocking launch._\n\n" +
-			"- **FR-0XX**: ..."
-		data.CouldHave = "_Features that would be great but can wait for a future version._\n\n" +
-			"- **FR-0XX**: ..."
-		data.WontHave = "_Features explicitly excluded from THIS version. Being explicit prevents scope creep._\n\n" +
-			"- **FR-0XX**: ..."
-		data.NonFunctional = "_Performance, security, usability requirements._\n\n" +
-			"_Format:_\n" +
-			"- **NFR-001**: _[Measurable constraint]_\n\n" +
-			"_Example:_\n" +
-			"- **NFR-001**: Page load time must be under 2 seconds on 3G\n" +
-			"- **NFR-002**: All user data must be encrypted at rest"
-		data.Constraints = "_Technical or business limitations._\n\n" +
-			"_Example:_\n" +
-			"- Must run on Node.js 20+\n" +
-			"- Budget limited to free-tier cloud services"
-		data.Assumptions = "_What we assume to be true. Flag these — if they change, so do requirements._"
-		data.Dependencies = "_External systems, APIs, or services we need._"
-	} else {
-		data.MustHave = fmt.Sprintf(
-			"_Extract must-have requirements from proposal. Use FR-XXX IDs.%s_\n\n"+
-				"**Source:**\n\n%s",
-			contextNote, proposal,
-		)
-		data.ShouldHave = "_Should-have requirements (FR-XXX)._"
-		data.CouldHave = "_Could-have requirements (FR-XXX)._"
-		data.WontHave = "_Won't-have this version (FR-XXX)._"
-		data.NonFunctional = "_Non-functional requirements (NFR-XXX)._"
-		data.Constraints = "_Technical and business constraints._"
-		data.Assumptions = "_Assumptions._"
-		data.Dependencies = "_Dependencies._"
-	}
-
-	return data
 }

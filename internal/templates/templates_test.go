@@ -108,7 +108,7 @@ func TestRender_Requirements(t *testing.T) {
 		"Users have modern browsers",
 		"## Dependencies",
 		"Auth0 for authentication",
-		"MoSCoW", // MoSCoW prioritization mention.
+		"SDD-Hoffy", // Attribution link.
 	}
 
 	for _, check := range checks {

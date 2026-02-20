@@ -290,7 +290,12 @@ func TestProposeTool_Handle_Success(t *testing.T) {
 
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
-		"idea": "I want to build a todo app with AI-powered prioritization",
+		"problem_statement": "Freelancers waste 30+ minutes daily tracking hours across spreadsheets",
+		"target_users":      "- **Freelance designers** who need simple time tracking\n- **Small agency owners** who need team visibility",
+		"proposed_solution":  "A web app where freelancers log hours per project and see weekly reports",
+		"out_of_scope":       "- Will NOT handle invoicing\n- Will NOT support offline mode",
+		"success_criteria":   "- Users can log time in under 10 seconds\n- 80% complete onboarding without help",
+		"open_questions":     "- Should we support mobile from day one?",
 	}
 
 	result, err := tool.Handle(context.Background(), req)
@@ -306,12 +311,15 @@ func TestProposeTool_Handle_Success(t *testing.T) {
 	if !strings.Contains(text, "Proposal Created") {
 		t.Error("result should contain 'Proposal Created'")
 	}
-	if !strings.Contains(text, "todo app") {
-		t.Error("result should contain the idea text")
+	if !strings.Contains(text, "Freelancers waste") {
+		t.Error("result should contain the problem statement content")
+	}
+	if !strings.Contains(text, "Freelance designers") {
+		t.Error("result should contain the target users content")
 	}
 }
 
-func TestProposeTool_Handle_MissingIdea(t *testing.T) {
+func TestProposeTool_Handle_MissingRequiredFields(t *testing.T) {
 	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StagePropose)
 	defer cleanup()
 
@@ -319,15 +327,55 @@ func TestProposeTool_Handle_MissingIdea(t *testing.T) {
 	renderer, _ := templates.NewRenderer()
 	tool := NewProposeTool(store, renderer)
 
-	req := mcp.CallToolRequest{}
-	req.Params.Arguments = map[string]interface{}{}
-
-	result, err := tool.Handle(context.Background(), req)
-	if err != nil {
-		t.Fatalf("Handle failed: %v", err)
+	tests := []struct {
+		name   string
+		args   map[string]interface{}
+		errMsg string
+	}{
+		{
+			name:   "missing problem_statement",
+			args:   map[string]interface{}{"target_users": "devs", "proposed_solution": "app", "out_of_scope": "none", "success_criteria": "works"},
+			errMsg: "problem_statement",
+		},
+		{
+			name:   "missing target_users",
+			args:   map[string]interface{}{"problem_statement": "problem", "proposed_solution": "app", "out_of_scope": "none", "success_criteria": "works"},
+			errMsg: "target_users",
+		},
+		{
+			name:   "missing proposed_solution",
+			args:   map[string]interface{}{"problem_statement": "problem", "target_users": "devs", "out_of_scope": "none", "success_criteria": "works"},
+			errMsg: "proposed_solution",
+		},
+		{
+			name:   "missing out_of_scope",
+			args:   map[string]interface{}{"problem_statement": "problem", "target_users": "devs", "proposed_solution": "app", "success_criteria": "works"},
+			errMsg: "out_of_scope",
+		},
+		{
+			name:   "missing success_criteria",
+			args:   map[string]interface{}{"problem_statement": "problem", "target_users": "devs", "proposed_solution": "app", "out_of_scope": "none"},
+			errMsg: "success_criteria",
+		},
 	}
-	if !isErrorResult(result) {
-		t.Error("should return error when idea is missing")
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := mcp.CallToolRequest{}
+			req.Params.Arguments = tt.args
+
+			result, err := tool.Handle(context.Background(), req)
+			if err != nil {
+				t.Fatalf("Handle failed: %v", err)
+			}
+			if !isErrorResult(result) {
+				t.Error("should return error when required field is missing")
+			}
+			text := getResultText(result)
+			if !strings.Contains(text, tt.errMsg) {
+				t.Errorf("error should mention '%s': %s", tt.errMsg, text)
+			}
+		})
 	}
 }
 
@@ -341,7 +389,11 @@ func TestProposeTool_Handle_WrongStage(t *testing.T) {
 
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
-		"idea": "Some idea",
+		"problem_statement": "problem",
+		"target_users":      "devs",
+		"proposed_solution":  "app",
+		"out_of_scope":       "none",
+		"success_criteria":   "works",
 	}
 
 	result, err := tool.Handle(context.Background(), req)
@@ -367,7 +419,11 @@ func TestProposeTool_Handle_AdvancesPipeline(t *testing.T) {
 
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
-		"idea": "Build a chat app",
+		"problem_statement": "Users need a chat app",
+		"target_users":      "Remote teams",
+		"proposed_solution":  "Real-time messaging platform",
+		"out_of_scope":       "Video calls",
+		"success_criteria":   "Sub-second message delivery",
 	}
 
 	_, err := tool.Handle(context.Background(), req)
@@ -400,7 +456,11 @@ func TestSpecifyTool_Handle_Success(t *testing.T) {
 	tool := NewSpecifyTool(store, renderer)
 
 	req := mcp.CallToolRequest{}
-	req.Params.Arguments = map[string]interface{}{}
+	req.Params.Arguments = map[string]interface{}{
+		"must_have":      "- **FR-001**: Users can create an account\n- **FR-002**: Users can log time entries",
+		"should_have":    "- **FR-005**: Users can export time entries as CSV",
+		"non_functional": "- **NFR-001**: Page load time must be under 2 seconds",
+	}
 
 	result, err := tool.Handle(context.Background(), req)
 	if err != nil {
@@ -415,6 +475,65 @@ func TestSpecifyTool_Handle_Success(t *testing.T) {
 	if !strings.Contains(text, "Requirements Generated") {
 		t.Error("result should contain 'Requirements Generated'")
 	}
+	if !strings.Contains(text, "FR-001") {
+		t.Error("result should contain requirement IDs")
+	}
+	if !strings.Contains(text, "Users can create an account") {
+		t.Error("result should contain the actual requirement content")
+	}
+}
+
+func TestSpecifyTool_Handle_MissingRequiredFields(t *testing.T) {
+	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageSpecify)
+	defer cleanup()
+
+	proposalPath := config.StagePath(tmpDir, config.StagePropose)
+	writeStageFile(proposalPath, "# Test Proposal\n\nSome content here.")
+
+	store := config.NewFileStore()
+	renderer, _ := templates.NewRenderer()
+	tool := NewSpecifyTool(store, renderer)
+
+	tests := []struct {
+		name   string
+		args   map[string]interface{}
+		errMsg string
+	}{
+		{
+			name:   "missing must_have",
+			args:   map[string]interface{}{"should_have": "something", "non_functional": "something"},
+			errMsg: "must_have",
+		},
+		{
+			name:   "missing should_have",
+			args:   map[string]interface{}{"must_have": "something", "non_functional": "something"},
+			errMsg: "should_have",
+		},
+		{
+			name:   "missing non_functional",
+			args:   map[string]interface{}{"must_have": "something", "should_have": "something"},
+			errMsg: "non_functional",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := mcp.CallToolRequest{}
+			req.Params.Arguments = tt.args
+
+			result, err := tool.Handle(context.Background(), req)
+			if err != nil {
+				t.Fatalf("Handle failed: %v", err)
+			}
+			if !isErrorResult(result) {
+				t.Error("should return error when required field is missing")
+			}
+			text := getResultText(result)
+			if !strings.Contains(text, tt.errMsg) {
+				t.Errorf("error should mention '%s': %s", tt.errMsg, text)
+			}
+		})
+	}
 }
 
 func TestSpecifyTool_Handle_EmptyProposal(t *testing.T) {
@@ -426,7 +545,11 @@ func TestSpecifyTool_Handle_EmptyProposal(t *testing.T) {
 	tool := NewSpecifyTool(store, renderer)
 
 	req := mcp.CallToolRequest{}
-	req.Params.Arguments = map[string]interface{}{}
+	req.Params.Arguments = map[string]interface{}{
+		"must_have":      "- FR-001: Something",
+		"should_have":    "- FR-002: Something",
+		"non_functional": "- NFR-001: Something",
+	}
 
 	result, err := tool.Handle(context.Background(), req)
 	if err != nil {
@@ -449,7 +572,11 @@ func TestSpecifyTool_Handle_AdvancesPipeline(t *testing.T) {
 	tool := NewSpecifyTool(store, renderer)
 
 	req := mcp.CallToolRequest{}
-	req.Params.Arguments = map[string]interface{}{}
+	req.Params.Arguments = map[string]interface{}{
+		"must_have":      "- **FR-001**: Users can sign up",
+		"should_have":    "- **FR-003**: Users can export data",
+		"non_functional": "- **NFR-001**: Load time < 2s",
+	}
 
 	_, err := tool.Handle(context.Background(), req)
 	if err != nil {
@@ -459,6 +586,36 @@ func TestSpecifyTool_Handle_AdvancesPipeline(t *testing.T) {
 	cfg, _ := store.Load(tmpDir)
 	if cfg.CurrentStage != config.StageClarify {
 		t.Errorf("stage should be clarify after specify, got: %s", cfg.CurrentStage)
+	}
+}
+
+func TestSpecifyTool_Handle_OptionalFieldsDefault(t *testing.T) {
+	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageSpecify)
+	defer cleanup()
+
+	proposalPath := config.StagePath(tmpDir, config.StagePropose)
+	writeStageFile(proposalPath, "# Test Proposal\n\nSome content here.")
+
+	store := config.NewFileStore()
+	renderer, _ := templates.NewRenderer()
+	tool := NewSpecifyTool(store, renderer)
+
+	// Only required fields — optional should get defaults.
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"must_have":      "- **FR-001**: Users can sign up",
+		"should_have":    "- **FR-003**: Users can export data",
+		"non_functional": "- **NFR-001**: Load time < 2s",
+	}
+
+	result, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	text := getResultText(result)
+	if !strings.Contains(text, "None defined for this version") {
+		t.Error("optional empty fields should show default text")
 	}
 }
 
