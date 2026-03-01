@@ -127,6 +127,11 @@ func New() (*server.MCPServer, func(), error) {
 	// internally by skipping memory search (ADR-001: scanner, not analyzer).
 	contextCheckTool := tools.NewContextCheckTool(changeStore, memStore)
 	s.AddTool(contextCheckTool.Definition(), contextCheckTool.Handle)
+
+	// Suggest-context tool registered unconditionally — standalone tool
+	// for ad-hoc sessions, works without active change or sdd.json.
+	suggestContextTool := tools.NewSuggestContextTool(changeStore, memStore)
+	s.AddTool(suggestContextTool.Definition(), suggestContextTool.Handle)
 	if memErr != nil {
 		log.Printf("WARNING: memory subsystem disabled: %v", memErr)
 	} else {
@@ -297,6 +302,10 @@ You do NOT need to activate Hoofy for:
 
 For bug fixes, refactors, enhancements, and small features, use the
 ADAPTIVE CHANGE PIPELINE instead (see below).
+
+For ad-hoc sessions (quick tasks, exploration, debugging), call sdd_suggest_context
+with a task description to get relevant specs, memory, and changes to read first.
+It works without a pipeline or sdd.json.
 
 ## What is SDD?
 
