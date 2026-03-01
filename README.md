@@ -41,16 +41,22 @@ Hoofy is three systems in one MCP server:
 |---|---|---|
 | **Memory** | Persistent context across sessions using SQLite + FTS5 full-text search. Decisions, bugs, patterns, discoveries — your AI remembers what happened yesterday. | 19 `mem_*` tools |
 | **Change Pipeline** | Adaptive workflow for ongoing dev. Picks the right stages based on change type × size (12 flow variants). Includes mandatory **context-check** and **artifact guard** stages. | 5 `sdd_change*` + `sdd_adr` |
-| **Project Pipeline** | Full greenfield specification — from vague idea to validated architecture with a Clarity Gate and **business rules extraction** that blocks hallucinations. | 9 `sdd_*` tools |
-| **Bootstrap** | Reverse-engineer existing codebases into SDD artifacts. Scans project structure, configs, conventions, schemas, and tests — then generates requirements, business rules, and design docs. | `sdd_reverse_engineer` + `sdd_bootstrap` |
+| **Project Pipeline** | Full greenfield specification — from vague idea to validated architecture with a Clarity Gate and **business rules extraction** that blocks hallucinations. | 11 `sdd_*` tools |
+| **Standalone** | Ad-hoc tools that work without any pipeline — suggest relevant context for a task, or run a spec-aware code review against your project's requirements, business rules, and ADRs. | `sdd_suggest_context` + `sdd_review` + `sdd_explore` |
 
-One binary. Zero external dependencies. SQLite embedded at compile time. Works with **any** MCP-compatible AI coding assistant — Claude Code, Cursor, VS Code Copilot, Gemini CLI, OpenCode. **36 tools total.**
+One binary. Zero external dependencies. SQLite embedded at compile time. Works with **any** MCP-compatible AI coding assistant — Claude Code, Cursor, VS Code Copilot, Gemini CLI, OpenCode. **38 tools + 6 on-demand prompts.**
 
 ### Why Hoofy?
 
 AI coding assistants are powerful but forgetful and overconfident. Studies show experienced developers are [19% slower with unstructured AI](https://metr.org/blog/2025-07-10-early-2025-ai-experienced-os-dev-study/) (METR 2025), and AI adoption without structure causes [7.2% delivery instability](https://dora.dev/research/2025/dora-report/) (DORA 2025). Hoofy fixes this by making your AI assistant remember context, follow specifications, and prove it understood before writing code.
 
 ### Key Features
+
+**Hot/Cold Instruction Architecture** — Server instructions are kept minimal (~160 lines of "constitution") to reduce token overhead. Detailed guidance for specific workflows is loaded on-demand via 6 MCP prompts (`/sdd-start`, `/sdd-status`, `/sdd-stage-guide`, `/sdd-memory-guide`, `/sdd-change-guide`, `/sdd-bootstrap-guide`). The AI requests the right prompt when it needs it — like loading a manual chapter instead of carrying the entire book. Inspired by research showing that compact constitutions with on-demand retrieval reduce token consumption by ~17%.
+
+**Spec-Aware Code Review** — `sdd_review` runs a code review against your project's specifications, not just generic best practices. It parses requirements (FR-XXX), business rules (BRC-XXX constraints), design decisions, and ADRs from memory to generate a review checklist. Works standalone — no active pipeline needed. Give it a task description and it tells you what to verify.
+
+**Ad-Hoc Context Suggestion** — `sdd_suggest_context` bridges the gap for sessions that don't use a formal pipeline. Give it a task description and it scans your specs, completed changes, memory observations, and project conventions to recommend what context to read before starting. Works without `sdd.json` or an active change.
 
 **Existing Project Bootstrap** — Got an existing codebase with no specs? `sdd_reverse_engineer` scans your project (directory structure, package manifests, configs, entry points, conventions, schemas, API definitions, ADRs, tests) and produces a structured report. Then `sdd_bootstrap` writes the missing SDD artifacts — requirements, business rules, and design docs — so the change pipeline works intelligently from day one. Medium/large changes are **blocked** without artifacts; small changes get a warning.
 
@@ -118,7 +124,7 @@ flowchart TB
     style C5 fill:#10b981,stroke:#059669,color:#fff
 ```
 
-> **[Full workflow guide with step-by-step examples](docs/workflow-guide.md)** · **[Complete tool reference (36 tools)](docs/tool-reference.md)**
+> **[Full workflow guide with step-by-step examples](docs/workflow-guide.md)** · **[Complete tool reference (38 tools)](docs/tool-reference.md)**
 
 ---
 
@@ -168,7 +174,7 @@ make build
 
 > **MCP Server vs Plugin — what's the difference?**
 >
- > The **MCP server** is Hoofy itself — the binary you just installed. It provides 36 tools (memory, change pipeline, project pipeline, bootstrap) and works with **any** MCP-compatible AI tool.
+ > The **MCP server** is Hoofy itself — the binary you just installed. It provides 38 tools and 6 on-demand prompts (memory, change pipeline, project pipeline, bootstrap, standalone) and works with **any** MCP-compatible AI tool.
 >
 > The **Plugin** is a Claude Code-only enhancement that layers additional capabilities on top of the MCP server:
 >
@@ -295,6 +301,8 @@ Before coding any new feature or significant change, use Hoofy to create specs f
 - New projects: use the SDD pipeline (sdd_init_project → sdd_validate)
 - Existing projects without specs: use sdd_reverse_engineer → sdd_bootstrap to generate artifacts
 - Ongoing work: use the change pipeline (sdd_change) — it adapts stages to the size of the change
+- Ad-hoc sessions: use sdd_suggest_context to find relevant specs/memory before starting
+- Code review: use sdd_review to verify implementation against specs, business rules, and ADRs
 - Memory: save decisions, bugs, and discoveries with mem_save so future sessions have context
 Do NOT start coding without specs for any non-trivial change.
 ```
@@ -310,6 +318,8 @@ Before coding any new feature or significant change, use Hoofy to create specs f
 - New projects: use the SDD pipeline (sdd_init_project → sdd_validate)
 - Existing projects without specs: use sdd_reverse_engineer → sdd_bootstrap to generate artifacts
 - Ongoing work: use the change pipeline (sdd_change) — it adapts stages to the size of the change
+- Ad-hoc sessions: use sdd_suggest_context to find relevant specs/memory before starting
+- Code review: use sdd_review to verify implementation against specs, business rules, and ADRs
 - Memory: save decisions, bugs, and discoveries with mem_save so future sessions have context
 Do NOT start coding without specs for any non-trivial change.
 ```
@@ -325,6 +335,8 @@ Before coding any new feature or significant change, use Hoofy to create specs f
 - New projects: use the SDD pipeline (sdd_init_project → sdd_validate)
 - Existing projects without specs: use sdd_reverse_engineer → sdd_bootstrap to generate artifacts
 - Ongoing work: use the change pipeline (sdd_change) — it adapts stages to the size of the change
+- Ad-hoc sessions: use sdd_suggest_context to find relevant specs/memory before starting
+- Code review: use sdd_review to verify implementation against specs, business rules, and ADRs
 - Memory: save decisions, bugs, and discoveries with mem_save so future sessions have context
 Do NOT start coding without specs for any non-trivial change.
 ```
@@ -340,6 +352,8 @@ Before coding any new feature or significant change, use Hoofy to create specs f
 - New projects: use the SDD pipeline (sdd_init_project → sdd_validate)
 - Existing projects without specs: use sdd_reverse_engineer → sdd_bootstrap to generate artifacts
 - Ongoing work: use the change pipeline (sdd_change) — it adapts stages to the size of the change
+- Ad-hoc sessions: use sdd_suggest_context to find relevant specs/memory before starting
+- Code review: use sdd_review to verify implementation against specs, business rules, and ADRs
 - Memory: save decisions, bugs, and discoveries with mem_save so future sessions have context
 Do NOT start coding without specs for any non-trivial change.
 ```
@@ -355,6 +369,8 @@ Before coding any new feature or significant change, use Hoofy to create specs f
 - New projects: use the SDD pipeline (sdd_init_project → sdd_validate)
 - Existing projects without specs: use sdd_reverse_engineer → sdd_bootstrap to generate artifacts
 - Ongoing work: use the change pipeline (sdd_change) — it adapts stages to the size of the change
+- Ad-hoc sessions: use sdd_suggest_context to find relevant specs/memory before starting
+- Code review: use sdd_review to verify implementation against specs, business rules, and ADRs
 - Memory: save decisions, bugs, and discoveries with mem_save so future sessions have context
 Do NOT start coding without specs for any non-trivial change.
 ```
@@ -442,6 +458,7 @@ Hoofy's specification pipeline isn't built on opinions. It's built on research. 
 - **DORA 2025**: [7.2% delivery instability increase](https://dora.dev/research/2025/dora-report/) for every 25% AI adoption — without foundational systems and practices.
 - **McKinsey 2025**: Top performers see [16-30% productivity gains](https://www.mckinsey.com/capabilities/mckinsey-digital/our-insights/superagency-in-the-workplace-empowering-people-to-unlock-ais-full-potential-at-work) only with structured specification and communication.
 - **IEEE 720574**: Fixing a requirement error in production costs [10-100x more](https://ieeexplore.ieee.org/document/720574) than fixing it during requirements — worse with AI-generated code.
+- **Codified Context (Lulla 2026)**: [AGENTS.md infrastructure](https://arxiv.org/abs/2602.20478v1) associated with 29% less runtime and 17% less token consumption. Compact constitutions (~660 lines) with on-demand retrieval outperform monolithic instructions. Hoofy's hot/cold instruction architecture implements this pattern.
 - **IREB & IEEE 29148**: Structured elicitation, traceability, ambiguity detection — Hoofy's Clarity Gate implements these frameworks.
 - **Business Rules Group**: The [Business Rules Manifesto](https://www.businessrulesgroup.org/brmanifesto.htm) — rules as first-class citizens. Hoofy uses BRG taxonomy.
 - **EARS**: [Research-backed sentence templates](https://alistairmavin.com/ears/) that eliminate requirements ambiguity.

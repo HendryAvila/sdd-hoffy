@@ -10,7 +10,7 @@ Foundational patterns for agent design. Distinguishes workflows from agents, int
 
 | Recommendation | Hoofy Implementation |
 |---|---|
-| "Agent-Computer Interface (ACI) is as important as HCI" — tool descriptions and parameters are critical for AI usability | All 36 tools use consistent `sdd_*` and `mem_*` namespacing with self-documenting parameter descriptions |
+| "Agent-Computer Interface (ACI) is as important as HCI" — tool descriptions and parameters are critical for AI usability | All 38 tools use consistent `sdd_*` and `mem_*` namespacing with self-documenting parameter descriptions |
 | "Do the simplest thing that works" — avoid over-engineering agent systems | Adaptive change pipeline selects only the stages needed (4-7 stages based on type x size), instead of forcing a one-size-fits-all workflow |
 | Orchestrator-worker pattern for complex tasks | Project pipeline uses sequential orchestration: propose → specify → clarify → design → tasks → validate |
 | Evaluator-optimizer pattern for iterative refinement | Clarity Gate blocks pipeline advancement until clarity score meets threshold, forcing iterative requirement refinement |
@@ -35,7 +35,7 @@ Direct guidance on tool design for AI agents. Covers namespacing, consolidation,
 
 | Recommendation | Hoofy Implementation |
 |---|---|
-| "Namespacing tools with prefixes helps delineate boundaries" | `mem_*` (19 memory tools), `sdd_*` (9 project pipeline tools), `sdd_change*` (5 change tools) — clear boundaries between systems |
+| "Namespacing tools with prefixes helps delineate boundaries" | `mem_*` (19 memory tools), `sdd_*` (11 project pipeline + 2 bootstrap tools), `sdd_change*` (5 change tools), standalone `sdd_explore`, `sdd_suggest_context`, `sdd_review` — clear boundaries between systems |
 | "Return only high-signal information, avoid cryptic UUIDs" | Tool responses include human-readable summaries, not raw database rows. `detail_level` parameter lets the AI request only the verbosity needed |
 | "Tools should be self-contained, robust to error, extremely clear" | Each tool has comprehensive parameter descriptions with examples in the tool definition |
 | "Truncate tool responses, but always include total counts" | `mem_search`, `mem_context`, and `mem_timeline` append navigation hints ("📊 Showing X of Y") when results are capped by limit. `NavigationHint()` returns empty string when all results are shown (no noise) |
@@ -70,6 +70,23 @@ Best practices for getting the most out of AI coding assistants. Covers CLAUDE.m
 |---|---|
 | Use CLAUDE.md for persistent project context | Context-check stage scans `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md` and other convention files for conflicts with the current change |
 | Structure specifications before coding | Full greenfield pipeline (propose → specify → business rules → clarity gate → design → tasks → validate) enforces specs before any code is written |
+
+---
+
+## Academic Research
+
+### [Codified Context: Infrastructure for AI Agents in a Complex Codebase](https://arxiv.org/abs/2602.20478v1) (Lulla 2026)
+
+Empirical analysis of meta-infrastructure (AGENTS.md, custom instructions, codified context) for AI coding agents in production codebases. Studies 6,088 SWE tasks and shows that codified context is a first-class engineering artifact, not just documentation.
+
+| Finding | Hoofy Implementation |
+|---|---|
+| AGENTS.md associated with **29% less runtime** and **17% less token consumption** | Hoofy's `AGENTS.md` is actively scanned by `sdd_context_check` and `sdd_suggest_context` — codified context is used as input, not just documentation |
+| Compact constitutions (~660 lines) outperform monolithic instructions | Server instructions reduced from 733 lines to ~160 lines. Detailed guidance moved to 6 on-demand MCP prompts (`/sdd-stage-guide`, `/sdd-memory-guide`, `/sdd-change-guide`, `/sdd-bootstrap-guide`) loaded only when needed |
+| 80%+ of agent prompts are ≤100 words — short, focused interactions dominate | `sdd_suggest_context` is designed for short "what should I read?" queries. `sdd_review` takes a brief change description and returns a structured checklist |
+| **4.3% overhead** for meta-infrastructure (context files) — small cost for significant gains | SDD artifacts (`sdd/*.md`) and convention files add minimal overhead while preventing hallucinations and rework |
+| **24.2% knowledge-to-code ratio** — nearly 1/4 of repo content is context/documentation | Hoofy's pipeline generates specs, business rules, design docs, and task breakdowns as first-class artifacts alongside code |
+| Ad-hoc review was more used than formal review stages | `sdd_review` is a standalone tool, not a pipeline stage — can be used at any time without starting a change flow (ADR captured for this decision) |
 
 ---
 

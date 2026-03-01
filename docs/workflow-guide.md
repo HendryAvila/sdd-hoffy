@@ -10,7 +10,8 @@ This guide walks you through real workflows using Hoofy's three systems: **Memor
 - [Workflow 0: Explore Before You Plan](#workflow-0-explore-before-you-plan)
 - [Workflow 1: New Project (Greenfield)](#workflow-1-new-project-greenfield)
 - [Workflow 2: Changes in an Existing Project](#workflow-2-changes-in-an-existing-project)
-- [Workflow 3: Memory Best Practices](#workflow-3-memory-best-practices)
+- [Workflow 3: Ad-Hoc Sessions (No Pipeline)](#workflow-3-ad-hoc-sessions-no-pipeline)
+- [Workflow 4: Memory Best Practices](#workflow-4-memory-best-practices)
 - [The Adaptive Flow Matrix](#the-adaptive-flow-matrix)
 
 ---
@@ -24,6 +25,8 @@ This guide walks you through real workflows using Hoofy's three systems: **Memor
 | Add a feature to existing code | **Change Pipeline** | `sdd_change(type: "feature", size: "medium")` |
 | Fix a bug | **Change Pipeline** | `sdd_change(type: "fix", size: "small")` |
 | Refactor code | **Change Pipeline** | `sdd_change(type: "refactor", size: "medium")` |
+| Quick task without starting a pipeline | **Standalone** | `sdd_suggest_context` |
+| Review code against specs | **Standalone** | `sdd_review` |
 | Remember a decision or discovery | **Memory** | `mem_save` |
 | Pick up where I left off | **Memory** | `mem_context` |
 
@@ -335,7 +338,56 @@ The AI generates wave assignments automatically when the dependency graph has pa
 
 ---
 
-## Workflow 3: Memory Best Practices
+## Workflow 3: Ad-Hoc Sessions (No Pipeline)
+
+Not every task needs a formal pipeline. Sometimes you're debugging, exploring, or doing a quick task. The standalone tools work without `sdd.json`, without an active change, and without any ceremony.
+
+### Context Suggestion — "What should I read first?"
+
+Before starting ad-hoc work, ask the AI to suggest relevant context:
+
+> **You**: "I need to optimize the search query — it's slow on large datasets"
+
+> **AI**: *Calls `sdd_suggest_context(task_description: "optimize search query slow large datasets")`*
+
+The tool scans:
+- **Existing specs** — requirements, business rules, design docs in `sdd/`
+- **Completed changes** — past changes that touched related areas
+- **Memory observations** — past decisions, discoveries, bugs about search/performance
+- **Convention files** — `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`
+
+Returns a prioritized list: "Read these 3 things before you start." No pipeline needed.
+
+### Spec-Aware Code Review — "Did I miss anything?"
+
+After implementing, ask the AI to verify against specs:
+
+> **You**: "Review the search optimization I just implemented"
+
+> **AI**: *Calls `sdd_review(change_description: "optimized search query with index and pagination")`*
+
+The tool parses:
+- **Requirements** — finds matching FR-XXX entries
+- **Business rules** — finds matching BRC-XXX constraints
+- **Design decisions** — finds relevant architecture sections
+- **ADRs from memory** — finds related architectural decisions
+
+Returns a checklist: "Verify FR-012 is still satisfied. Check that BRC-003 constraint on max results is respected. Confirm ADR about SQLite FTS5 is followed."
+
+### When to use standalone vs. pipeline
+
+| Situation | Use... |
+|---|---|
+| Quick fix, clear what to do | `sdd_suggest_context` → fix → `sdd_review` |
+| Bug investigation, not sure of scope | `sdd_suggest_context` → investigate → maybe `sdd_change` if bigger |
+| Post-implementation sanity check | `sdd_review` |
+| Non-trivial change (new feature, refactor) | `sdd_change` (formal pipeline) |
+
+The standalone tools are the "fast path" — they give you spec awareness without pipeline overhead.
+
+---
+
+## Workflow 4: Memory Best Practices
 
 Memory is always running in the background. Here's how to get the most out of it.
 
