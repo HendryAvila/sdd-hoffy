@@ -35,7 +35,7 @@
 
 Hoofy is an AI coding tool that solves the three biggest problems with AI-assisted development: **memory loss between sessions**, **hallucinated implementations**, and **unstructured AI workflows**. It's a single [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server written in Go — one binary, zero dependencies — that works with Claude Code, Cursor, VS Code Copilot, Gemini CLI, OpenCode, and any MCP-compatible AI tool.
 
-Hoofy is three systems in one MCP server:
+Hoofy is four systems in one MCP server:
 
 | System | What it does | Tools |
 |---|---|---|
