@@ -42,7 +42,7 @@ Hoofy is three systems in one MCP server:
 | **Memory** | Persistent context across sessions using SQLite + FTS5 full-text search. Decisions, bugs, patterns, discoveries — your AI remembers what happened yesterday. | 19 `mem_*` tools |
 | **Change Pipeline** | Adaptive workflow for ongoing dev. Picks the right stages based on change type × size (12 flow variants). Includes mandatory **context-check** and **artifact guard** stages. | 5 `sdd_change*` + `sdd_adr` |
 | **Project Pipeline** | Full greenfield specification — from vague idea to validated architecture with a Clarity Gate and **business rules extraction** that blocks hallucinations. | 11 `sdd_*` tools |
-| **Standalone** | Ad-hoc tools that work without any pipeline — suggest relevant context for a task, or run a spec-aware code review against your project's requirements, business rules, and ADRs. | `sdd_suggest_context` + `sdd_review` + `sdd_explore` |
+| **Bootstrap** | Reverse-engineer existing codebases into SDD artifacts. Scans project structure, configs, conventions, schemas, and tests — then generates requirements, business rules, and design docs. | `sdd_reverse_engineer` + `sdd_bootstrap` |
 
 One binary. Zero external dependencies. SQLite embedded at compile time. Works with **any** MCP-compatible AI coding assistant — Claude Code, Cursor, VS Code Copilot, Gemini CLI, OpenCode. **38 tools + 6 on-demand prompts.**
 
