@@ -132,6 +132,11 @@ func New() (*server.MCPServer, func(), error) {
 	// for ad-hoc sessions, works without active change or sdd.json.
 	suggestContextTool := tools.NewSuggestContextTool(changeStore, memStore)
 	s.AddTool(suggestContextTool.Definition(), suggestContextTool.Handle)
+
+	// Review tool registered unconditionally — standalone spec-aware
+	// code review, generates checklists from project specs.
+	reviewTool := tools.NewReviewTool(memStore)
+	s.AddTool(reviewTool.Definition(), reviewTool.Handle)
 	if memErr != nil {
 		log.Printf("WARNING: memory subsystem disabled: %v", memErr)
 	} else {
@@ -305,6 +310,10 @@ ADAPTIVE CHANGE PIPELINE instead (see below).
 
 For ad-hoc sessions (quick tasks, exploration, debugging), call sdd_suggest_context
 with a task description to get relevant specs, memory, and changes to read first.
+It works without a pipeline or sdd.json.
+
+For code review, call sdd_review with a change description to generate a spec-aware
+review checklist. Each item references specific spec IDs (FR-XXX, BRC-XXX, ADRs).
 It works without a pipeline or sdd.json.
 
 ## What is SDD?
