@@ -34,7 +34,7 @@ func (t *ValidateTool) Definition() mcp.Tool {
 			"Run a cross-artifact consistency check across all SDD documents. "+
 				"This is Stage 6 (final) of the SDD pipeline. "+
 				"IMPORTANT: Before calling this tool, the AI MUST read ALL artifacts "+
-				"(proposal, requirements, clarifications, design, tasks) using sdd_get_context "+
+				"(principles, charter, requirements, clarifications, design, tasks) using sdd_get_context "+
 				"and perform a thorough cross-reference analysis. "+
 				"The AI should check: requirement coverage, component coverage, task traceability, "+
 				"dependency validity, and identify any gaps or inconsistencies. "+
@@ -62,7 +62,7 @@ func (t *ValidateTool) Definition() mcp.Tool {
 			mcp.Description("List of inconsistencies found between artifacts. "+
 				"Example: '1. **Mismatch**: Design specifies PostgreSQL but TASK-005 mentions MongoDB setup\\n"+
 				"2. **Gap**: Requirements mention OAuth login (FR-008) but design only covers email/password auth\\n"+
-				"3. **Scope creep**: TASK-011 implements push notifications which is listed as out-of-scope in proposal'"),
+				"3. **Scope creep**: TASK-011 implements push notifications which is listed as out-of-scope in charter'"),
 		),
 		mcp.WithString("risk_assessment",
 			mcp.Description("Identified risks and their mitigation strategies. "+
@@ -147,7 +147,8 @@ func (t *ValidateTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mc
 
 	// Verify all previous artifacts exist.
 	for _, stage := range []config.Stage{
-		config.StagePropose,
+		config.StagePrinciples,
+		config.StageCharter,
 		config.StageSpecify,
 		config.StageClarify,
 		config.StageDesign,
@@ -224,12 +225,13 @@ func (t *ValidateTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mc
 		nextStep = "## 🎉 SDD Pipeline Complete!\n\n" +
 			"All specifications are consistent and ready for implementation.\n\n" +
 			"**Your SDD artifacts:**\n" +
-			"- `sdd/proposal.md` — What we're building and why\n" +
-			"- `sdd/requirements.md` — Formal requirements (MoSCoW)\n" +
-			"- `sdd/clarifications.md` — Resolved ambiguities\n" +
-			"- `sdd/design.md` — Technical architecture\n" +
-			"- `sdd/tasks.md` — Implementation task breakdown\n" +
-			"- `sdd/validation.md` — This consistency report\n\n" +
+			"- `docs/principles.md` — Golden invariants and coding standards\n" +
+			"- `docs/charter.md` — What we're building and why\n" +
+			"- `docs/requirements.md` — Formal requirements (MoSCoW)\n" +
+			"- `docs/clarifications.md` — Resolved ambiguities\n" +
+			"- `docs/design.md` — Technical architecture\n" +
+			"- `docs/tasks.md` — Implementation task breakdown\n" +
+			"- `docs/validation.md` — This consistency report\n\n" +
 			"**Next:** Use these specs with your AI coding tool's `/plan mode` to start implementation. " +
 			"The specs will dramatically reduce hallucinations because every requirement is clear, " +
 			"traced to a task, and architecturally grounded."
@@ -251,7 +253,7 @@ func (t *ValidateTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mc
 	response := fmt.Sprintf(
 		"# Validation Report\n\n"+
 			"**Verdict:** %s\n\n"+
-			"Saved to `sdd/validation.md`\n\n"+
+			"Saved to `docs/validation.md`\n\n"+
 			"## Summary\n\n%s\n\n"+
 			"---\n\n"+
 			"%s",

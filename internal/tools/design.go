@@ -87,16 +87,6 @@ func (t *DesignTool) Definition() mcp.Tool {
 				"- bcrypt for password hashing (cost factor 12)\\n"+
 				"- Rate limiting: 100 req/min per IP'"),
 		),
-		mcp.WithString("design_decisions",
-			mcp.Description("Key architectural decisions and their rationale (ADRs). "+
-				"Include alternatives considered and why they were rejected. Use markdown format. "+
-				"Example: '### ADR-001: PostgreSQL over MongoDB\\n"+
-				"**Context**: Need to store relational data with transactions\\n"+
-				"**Decision**: PostgreSQL\\n"+
-				"**Rationale**: ACID compliance required for financial records; "+
-				"data is inherently relational\\n"+
-				"**Alternatives rejected**: MongoDB (no native joins, eventual consistency)'"),
-		),
 		mcp.WithString("quality_analysis",
 			mcp.Description("Structural quality analysis of the proposed design. "+
 				"Evaluate SOLID principles compliance and detect potential code smells. "+
@@ -125,7 +115,6 @@ func (t *DesignTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	dataModel := req.GetString("data_model", "")
 	infrastructure := req.GetString("infrastructure", "")
 	security := req.GetString("security", "")
-	designDecisions := req.GetString("design_decisions", "")
 	qualityAnalysis := req.GetString("quality_analysis", "")
 
 	// Validate required fields.
@@ -179,9 +168,6 @@ func (t *DesignTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	if security == "" {
 		security = "_Not yet defined._"
 	}
-	if designDecisions == "" {
-		designDecisions = "_No explicit ADRs recorded._"
-	}
 	if qualityAnalysis == "" {
 		qualityAnalysis = "_No structural quality analysis provided._"
 	}
@@ -196,7 +182,6 @@ func (t *DesignTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		DataModel:            dataModel,
 		Infrastructure:       infrastructure,
 		Security:             security,
-		DesignDecisions:      designDecisions,
 		QualityAnalysis:      qualityAnalysis,
 	}
 
@@ -219,7 +204,7 @@ func (t *DesignTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 
 	response := fmt.Sprintf(
 		"# Technical Design Created\n\n"+
-			"Saved to `sdd/design.md`\n\n"+
+			"Saved to `docs/design.md`\n\n"+
 			"## Content\n\n%s\n\n"+
 			"---\n\n"+
 			"## Next Step\n\n"+

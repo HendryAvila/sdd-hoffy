@@ -33,12 +33,12 @@ func (t *SpecifyTool) Definition() mcp.Tool {
 		mcp.WithDescription(
 			"Save formal requirements extracted from the proposal document. "+
 				"This is Stage 2 of the SDD pipeline. "+
-				"IMPORTANT: Before calling this tool, the AI MUST read the proposal (sdd/proposal.md), "+
+				"IMPORTANT: Before calling this tool, the AI MUST read the charter (docs/charter.md), "+
 				"analyze it, and generate real requirements with MoSCoW prioritization. "+
 				"Pass the ACTUAL requirements content (not placeholders) for each section. "+
 				"Each functional requirement needs a unique ID (FR-001, FR-002...). "+
 				"Each non-functional requirement needs a unique ID (NFR-001, NFR-002...). "+
-				"Requires: sdd_create_proposal must have been run first.",
+				"Requires: sdd_create_charter must have been run first.",
 		),
 		mcp.WithString("must_have",
 			mcp.Required(),
@@ -116,14 +116,14 @@ func (t *SpecifyTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	// Verify the proposal exists.
-	proposalPath := config.StagePath(projectRoot, config.StagePropose)
-	proposal, err := readStageFile(proposalPath)
+	// Verify the charter exists.
+	charterPath := config.StagePath(projectRoot, config.StageCharter)
+	charter, err := readStageFile(charterPath)
 	if err != nil {
-		return nil, fmt.Errorf("reading proposal: %w", err)
+		return nil, fmt.Errorf("reading charter: %w", err)
 	}
-	if proposal == "" {
-		return mcp.NewToolResultError("proposal.md is empty — run sdd_create_proposal first"), nil
+	if charter == "" {
+		return mcp.NewToolResultError("charter.md is empty — run sdd_create_charter first"), nil
 	}
 
 	pipeline.MarkInProgress(cfg)
@@ -177,7 +177,7 @@ func (t *SpecifyTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp
 
 	response := fmt.Sprintf(
 		"# Requirements Generated\n\n"+
-			"Saved to `sdd/requirements.md`\n\n"+
+			"Saved to `docs/requirements.md`\n\n"+
 			"## Content\n\n%s\n\n"+
 			"---\n\n"+
 			"## Next Step\n\n"+

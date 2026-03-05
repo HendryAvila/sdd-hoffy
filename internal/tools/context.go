@@ -32,7 +32,7 @@ func (t *ContextTool) Definition() mcp.Tool {
 		),
 		mcp.WithString("stage",
 			mcp.Description(
-				"Specific stage artifact to read: 'proposal', 'requirements', 'clarifications', "+
+				"Specific stage artifact to read: 'principles', 'charter', 'requirements', 'clarifications', "+
 					"'design', 'tasks'. Leave empty to get an overview of all stages.",
 			),
 		),
@@ -197,7 +197,8 @@ func (t *ContextTool) buildOverview(cfg *config.ProjectConfig, projectRoot strin
 	// Artifacts summary.
 	sb.WriteString("\n## Artifacts\n\n")
 	artifactStages := []config.Stage{
-		config.StagePropose,
+		config.StagePrinciples,
+		config.StageCharter,
 		config.StageSpecify,
 		config.StageClarify,
 		config.StageDesign,
@@ -216,7 +217,7 @@ func (t *ContextTool) buildOverview(cfg *config.ProjectConfig, projectRoot strin
 			exists = fmt.Sprintf("%d lines", lines)
 		}
 		meta := config.Stages[stage]
-		fmt.Fprintf(&sb, "- **%s** (`sdd/%s`): %s\n",
+		fmt.Fprintf(&sb, "- **%s** (`docs/%s`): %s\n",
 			meta.Name, config.StageFilename(stage), exists)
 	}
 
@@ -267,7 +268,8 @@ func (t *ContextTool) buildFullOverview(cfg *config.ProjectConfig, projectRoot s
 
 	// Append full artifact content for each completed stage.
 	artifactStages := []config.Stage{
-		config.StagePropose,
+		config.StagePrinciples,
+		config.StageCharter,
 		config.StageSpecify,
 		config.StageClarify,
 		config.StageDesign,
@@ -321,10 +323,12 @@ func statusIndicator(status string) string {
 // nextStepGuidance returns mode-appropriate guidance for the current stage.
 func nextStepGuidance(cfg *config.ProjectConfig) string {
 	switch cfg.CurrentStage {
-	case config.StagePropose:
-		return "Use `sdd_create_proposal` with your project idea to create a structured proposal."
+	case config.StagePrinciples:
+		return "Use `sdd_create_principles` to define your project's golden invariants, coding standards, and domain truths."
+	case config.StageCharter:
+		return "Use `sdd_create_charter` with your project idea to create a structured charter."
 	case config.StageSpecify:
-		return "Use `sdd_generate_requirements` to extract formal requirements from the proposal."
+		return "Use `sdd_generate_requirements` to extract formal requirements from the charter."
 	case config.StageClarify:
 		return fmt.Sprintf(
 			"Use `sdd_clarify` to run the Clarity Gate. Current score: %d/%d needed.",

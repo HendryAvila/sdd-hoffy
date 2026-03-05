@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/HendryAvila/Hoofy/internal/changes"
+	"github.com/HendryAvila/Hoofy/internal/config"
 	"github.com/HendryAvila/Hoofy/internal/memory"
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -248,13 +249,14 @@ type conventionInfo struct {
 var sddArtifactFiles = []string{
 	"business-rules.md",
 	"requirements.md",
-	"proposal.md",
+	"charter.md",
+	"principles.md",
 	"design.md",
 }
 
-// scanArtifacts reads SDD artifact files from the project's sdd/ directory.
+// scanArtifacts reads SDD artifact files from the project's docs/ directory.
 func (t *ContextCheckTool) scanArtifacts(projectRoot string) []artifactInfo {
-	sddDir := filepath.Join(projectRoot, "sdd")
+	sddDir := config.DocsPath(projectRoot)
 	var found []artifactInfo
 
 	for _, filename := range sddArtifactFiles {

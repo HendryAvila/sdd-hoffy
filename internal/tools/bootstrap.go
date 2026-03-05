@@ -2,7 +2,7 @@
 //
 // bootstrap.go implements the sdd_bootstrap MCP tool.
 // It writes SDD artifacts for projects that bypassed the greenfield pipeline.
-// No pipeline state machine interaction, no stage guards, no sdd.json required.
+// No pipeline state machine interaction, no stage guards, no hoofy.json required.
 // Uses the shared rendering functions from artifacts.go (ADR-001).
 //
 // ADR-002: Separate tool from sdd_reverse_engineer (scanner = read-only,
@@ -39,7 +39,7 @@ func (t *BootstrapTool) Definition() mcp.Tool {
 			"Write missing SDD artifacts for projects that bypassed the greenfield pipeline. "+
 				"Call this AFTER `sdd_reverse_engineer` to save the AI-generated artifacts. "+
 				"Only writes artifacts that don't already exist — existing ones are skipped. "+
-				"Does NOT require sdd.json or an active pipeline. "+
+				"Does NOT require hoofy.json or an active pipeline. "+
 				"At least one artifact group must have content.",
 		),
 		// --- Requirements artifact ---
@@ -105,9 +105,6 @@ func (t *BootstrapTool) Definition() mcp.Tool {
 		mcp.WithString("design_security",
 			mcp.Description("Security measures, auth strategy, data protection."),
 		),
-		mcp.WithString("design_decisions",
-			mcp.Description("Key architectural decisions and rationale (ADRs)."),
-		),
 		mcp.WithString("design_quality_analysis",
 			mcp.Description("Structural quality analysis: SOLID compliance, code smell detection "+
 				"(Shotgun Surgery, Feature Envy, God Class, Divergent Change, Inappropriate Intimacy), "+
@@ -133,10 +130,10 @@ func (t *BootstrapTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*m
 		projectName = filepath.Base(projectRoot)
 	}
 
-	// Ensure sdd/ directory exists.
-	sddDir := filepath.Join(projectRoot, "sdd")
-	if err := os.MkdirAll(sddDir, 0o755); err != nil {
-		return nil, fmt.Errorf("creating sdd directory: %w", err)
+	// Ensure docs/ directory exists.
+	docsDir := config.DocsPath(projectRoot)
+	if err := os.MkdirAll(docsDir, 0o755); err != nil {
+		return nil, fmt.Errorf("creating docs directory: %w", err)
 	}
 
 	// Check which artifacts exist.
@@ -170,7 +167,6 @@ func (t *BootstrapTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*m
 	desAPI := req.GetString("design_api_contracts", "")
 	desInfra := req.GetString("design_infrastructure", "")
 	desSecurity := req.GetString("design_security", "")
-	desDecisions := req.GetString("design_decisions", "")
 	desQualityAnalysis := req.GetString("design_quality_analysis", "")
 
 	// Check if at least one artifact group has content.
@@ -292,9 +288,6 @@ func (t *BootstrapTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*m
 		if desSecurity == "" {
 			desSecurity = "_Not yet defined._"
 		}
-		if desDecisions == "" {
-			desDecisions = "_No explicit ADRs recorded._"
-		}
 		if desQualityAnalysis == "" {
 			desQualityAnalysis = "_No structural quality analysis provided._"
 		}
@@ -308,7 +301,6 @@ func (t *BootstrapTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*m
 			DataModel:            desDataModel,
 			Infrastructure:       desInfra,
 			Security:             desSecurity,
-			DesignDecisions:      desDecisions,
 			QualityAnalysis:      desQualityAnalysis,
 		}
 
@@ -327,7 +319,7 @@ func (t *BootstrapTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*m
 	if len(written) > 0 {
 		response.WriteString("## Written\n\n")
 		for _, w := range written {
-			fmt.Fprintf(&response, "- ✅ `sdd/%s`\n", w)
+			fmt.Fprintf(&response, "- ✅ `docs/%s`\n", w)
 		}
 		response.WriteString("\n")
 	}
@@ -335,7 +327,7 @@ func (t *BootstrapTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*m
 	if len(skipped) > 0 {
 		response.WriteString("## Skipped\n\n")
 		for _, s := range skipped {
-			fmt.Fprintf(&response, "- ⏭️ `sdd/%s`\n", s)
+			fmt.Fprintf(&response, "- ⏭️ `docs/%s`\n", s)
 		}
 		response.WriteString("\n")
 	}
@@ -346,7 +338,7 @@ func (t *BootstrapTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*m
 
 	response.WriteString("---\n\n")
 	response.WriteString("## Next Steps\n\n")
-	response.WriteString("1. **Review** the auto-generated artifacts in `sdd/` — they may need refinement\n")
+	response.WriteString("1. **Review** the auto-generated artifacts in `docs/` — they may need refinement\n")
 	response.WriteString("2. **Run `sdd_change`** to start making changes with full context awareness\n")
 	response.WriteString("3. The `context-check` stage will now have architecture and requirements context\n")
 

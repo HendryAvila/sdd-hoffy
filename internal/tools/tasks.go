@@ -188,7 +188,7 @@ func (t *TasksTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 
 	response := fmt.Sprintf(
 		"# Implementation Tasks Created\n\n"+
-			"Saved to `sdd/tasks.md`\n\n"+
+			"Saved to `docs/tasks.md`\n\n"+
 			"## Content\n\n%s\n\n"+
 			"---\n\n"+
 			"## Next Step\n\n"+

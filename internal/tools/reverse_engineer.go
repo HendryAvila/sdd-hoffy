@@ -709,13 +709,14 @@ func scanAPIDefs(root, detailLevel string) scanSection {
 
 // adrDirs are directories to scan for Architecture Decision Records.
 var adrDirs = []string{
+	"docs/adrs",
 	"docs/adr",
 	"adr",
 	"doc/decisions",
 	"docs/decisions",
 	"architectural-decisions",
 	"docs/architecture",
-	"sdd/changes",
+	"docs/changes",
 }
 
 // scanADRs detects and reads ADR files.
@@ -1090,7 +1091,7 @@ func (t *ReverseEngineerTool) Handle(ctx context.Context, req mcp.CallToolReques
 	report.WriteString("# Project Scan Report\n\n")
 	report.WriteString("> **AI Instructions**: Analyze this scan report and generate content for ")
 	report.WriteString("the missing SDD artifacts. Call `sdd_bootstrap` with the generated content.\n")
-	report.WriteString("> Only generate artifacts that don't already exist in `sdd/`.\n")
+	report.WriteString("> Only generate artifacts that don't already exist in `docs/`.\n")
 	report.WriteString("> Focus on: business rules (domain terms, facts, constraints), ")
 	report.WriteString("requirements (functional and non-functional), and design (architecture, tech stack, components).\n\n")
 
@@ -1116,13 +1117,13 @@ func (t *ReverseEngineerTool) Handle(ctx context.Context, req mcp.CallToolReques
 	if hasReqs || hasRules || hasDesign {
 		report.WriteString("## Existing SDD Artifacts\n\n")
 		if hasReqs {
-			report.WriteString("- ✅ `sdd/requirements.md` — already exists\n")
+			report.WriteString("- ✅ `docs/requirements.md` — already exists\n")
 		}
 		if hasRules {
-			report.WriteString("- ✅ `sdd/business-rules.md` — already exists\n")
+			report.WriteString("- ✅ `docs/business-rules.md` — already exists\n")
 		}
 		if hasDesign {
-			report.WriteString("- ✅ `sdd/design.md` — already exists\n")
+			report.WriteString("- ✅ `docs/design.md` — already exists\n")
 		}
 		missing := 0
 		if !hasReqs {

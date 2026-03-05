@@ -8,13 +8,14 @@ import (
 	"strings"
 
 	"github.com/HendryAvila/Hoofy/internal/changes"
+	"github.com/HendryAvila/Hoofy/internal/config"
 	"github.com/HendryAvila/Hoofy/internal/memory"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
 // SuggestContextTool handles the sdd_suggest_context MCP tool.
 // It recommends relevant specs, memory, and changes for a given task
-// description WITHOUT requiring an active change pipeline or sdd.json.
+// description WITHOUT requiring an active change pipeline or hoofy.json.
 // This bridges the gap for ad-hoc sessions that don't go through the
 // formal change pipeline (87% of sessions per the Codified Context paper).
 type SuggestContextTool struct {
@@ -34,7 +35,7 @@ func (t *SuggestContextTool) Definition() mcp.Tool {
 		mcp.WithDescription(
 			"Recommend relevant specs, memory observations, and completed changes "+
 				"for a given task description. Works WITHOUT an active change pipeline "+
-				"or sdd.json — ideal for ad-hoc sessions. Returns a prioritized, "+
+				"or hoofy.json — ideal for ad-hoc sessions. Returns a prioritized, "+
 				"actionable list of context to read before starting work.",
 		),
 		mcp.WithString("task_description",
@@ -81,7 +82,7 @@ func (t *SuggestContextTool) Handle(ctx context.Context, req mcp.CallToolRequest
 		return mcp.NewToolResultError("'task_description' is required — describe the task you're about to work on"), nil
 	}
 
-	// Use working directory directly — no sdd.json required (FR-030, FR-031).
+	// Use working directory directly — no hoofy.json required (FR-030, FR-031).
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("getting working directory: %w", err)
@@ -221,14 +222,14 @@ func intArgSuggest(req mcp.CallToolRequest, key string, defaultVal int) int {
 	return int(v)
 }
 
-// suggestScanArtifacts reads SDD artifact files from the cwd's sdd/ directory.
-// Returns empty slice if sdd/ doesn't exist (FR-031).
+// suggestScanArtifacts reads SDD artifact files from the cwd's docs/ directory.
+// Returns empty slice if docs/ doesn't exist (FR-031).
 func (t *SuggestContextTool) suggestScanArtifacts(cwd string) []artifactInfo {
-	sddDir := filepath.Join(cwd, "sdd")
+	docsDir := config.DocsPath(cwd)
 	var found []artifactInfo
 
 	for _, filename := range sddArtifactFiles {
-		path := filepath.Join(sddDir, filename)
+		path := filepath.Join(docsDir, filename)
 		data, err := os.ReadFile(path)
 		if err != nil {
 			continue

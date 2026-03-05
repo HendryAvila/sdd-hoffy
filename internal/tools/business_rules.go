@@ -152,7 +152,7 @@ func (t *BusinessRulesTool) Handle(ctx context.Context, req mcp.CallToolRequest)
 
 	response := fmt.Sprintf(
 		"# Business Rules Documented\n\n"+
-			"Saved to `sdd/business-rules.md`\n\n"+
+			"Saved to `docs/business-rules.md`\n\n"+
 			"## Content\n\n%s\n\n"+
 			"---\n\n"+
 			"## Next Step\n\n"+

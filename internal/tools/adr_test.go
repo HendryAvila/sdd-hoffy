@@ -11,7 +11,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// --- ADRTool tests (TASK-008) ---
+// --- ADRTool tests ---
 
 func TestADRTool_Definition(t *testing.T) {
 	store := changes.NewFileStore()
@@ -56,12 +56,15 @@ func TestADRTool_Handle_WithActiveChange(t *testing.T) {
 	if !strings.Contains(text, change.ID) {
 		t.Error("result should reference the active change ID")
 	}
+	if !strings.Contains(text, "docs/adrs/") {
+		t.Error("result should show docs/adrs/ path")
+	}
 
-	// Verify ADR file was written.
-	adrPath := filepath.Join(tmpDir, "sdd", "changes", change.ID, "adrs", "ADR-001.md")
+	// Verify ADR file was written to unified docs/adrs/ directory.
+	adrPath := filepath.Join(tmpDir, "docs", "adrs", "001-use-postgresql-over-mongodb.md")
 	data, err := os.ReadFile(adrPath)
 	if err != nil {
-		t.Fatalf("ADR file should exist: %v", err)
+		t.Fatalf("ADR file should exist at %s: %v", adrPath, err)
 	}
 	adrContent := string(data)
 	if !strings.Contains(adrContent, "Use PostgreSQL over MongoDB") {
@@ -69,6 +72,9 @@ func TestADRTool_Handle_WithActiveChange(t *testing.T) {
 	}
 	if !strings.Contains(adrContent, "ACID compliance") {
 		t.Error("ADR file should contain the rationale")
+	}
+	if !strings.Contains(adrContent, change.ID) {
+		t.Error("ADR file should reference the change ID")
 	}
 
 	// Verify change record was updated.
@@ -121,14 +127,14 @@ func TestADRTool_Handle_MultipleADRs(t *testing.T) {
 		t.Error("second ADR should be numbered ADR-002")
 	}
 
-	// Verify both files exist.
-	adr1Path := filepath.Join(tmpDir, "sdd", "changes", change.ID, "adrs", "ADR-001.md")
-	adr2Path := filepath.Join(tmpDir, "sdd", "changes", change.ID, "adrs", "ADR-002.md")
+	// Verify both files exist in docs/adrs/ with sequential numbering.
+	adr1Path := filepath.Join(tmpDir, "docs", "adrs", "001-first-decision.md")
+	adr2Path := filepath.Join(tmpDir, "docs", "adrs", "002-second-decision.md")
 	if _, err := os.Stat(adr1Path); os.IsNotExist(err) {
-		t.Error("ADR-001.md should exist")
+		t.Errorf("ADR-001 should exist at %s", adr1Path)
 	}
 	if _, err := os.Stat(adr2Path); os.IsNotExist(err) {
-		t.Error("ADR-002.md should exist")
+		t.Errorf("ADR-002 should exist at %s", adr2Path)
 	}
 
 	// Verify change record has both.
@@ -142,7 +148,7 @@ func TestADRTool_Handle_MultipleADRs(t *testing.T) {
 }
 
 func TestADRTool_Handle_Standalone(t *testing.T) {
-	_, cleanup := setupChangeProject(t)
+	tmpDir, cleanup := setupChangeProject(t)
 	defer cleanup()
 
 	store := changes.NewFileStore()
@@ -152,8 +158,8 @@ func TestADRTool_Handle_Standalone(t *testing.T) {
 	req.Params.Arguments = map[string]interface{}{
 		"title":     "Standalone decision",
 		"context":   "No active change exists.",
-		"decision":  "Use memory-only storage.",
-		"rationale": "No change to attach to.",
+		"decision":  "Use central ADR storage.",
+		"rationale": "Unified location for all decisions.",
 	}
 
 	result, err := tool.Handle(context.Background(), req)
@@ -165,11 +171,17 @@ func TestADRTool_Handle_Standalone(t *testing.T) {
 	}
 
 	text := getResultText(result)
-	if !strings.Contains(text, "standalone") {
-		t.Error("result should indicate standalone ADR")
+	if !strings.Contains(text, "ADR Captured") {
+		t.Error("result should contain 'ADR Captured'")
 	}
-	if !strings.Contains(text, "memory only") {
-		t.Error("result should mention memory-only storage")
+	if !strings.Contains(text, "docs/adrs/") {
+		t.Error("result should show docs/adrs/ path")
+	}
+
+	// Verify file was still created (not memory-only anymore).
+	adrPath := filepath.Join(tmpDir, "docs", "adrs", "001-standalone-decision.md")
+	if _, err := os.Stat(adrPath); os.IsNotExist(err) {
+		t.Errorf("standalone ADR should still create a file at %s", adrPath)
 	}
 }
 
@@ -365,7 +377,7 @@ func TestADRTool_Handle_DefaultStatus(t *testing.T) {
 }
 
 func TestADRTool_Handle_WithAlternatives(t *testing.T) {
-	_, cleanup, change := createActiveChange(t, changes.TypeFeature, changes.SizeLarge, "adr alternatives")
+	tmpDir, cleanup, _ := createActiveChange(t, changes.TypeFeature, changes.SizeLarge, "adr alternatives")
 	defer cleanup()
 
 	store := changes.NewFileStore()
@@ -390,9 +402,8 @@ func TestADRTool_Handle_WithAlternatives(t *testing.T) {
 		t.Error("result should contain 'Alternatives Rejected' section")
 	}
 
-	// Verify file content includes alternatives.
-	cwd, _ := os.Getwd()
-	adrPath := filepath.Join(cwd, "sdd", "changes", change.ID, "adrs", "ADR-001.md")
+	// Verify file content includes alternatives — now in docs/adrs/.
+	adrPath := filepath.Join(tmpDir, "docs", "adrs", "001-db-choice.md")
 	data, err := os.ReadFile(adrPath)
 	if err != nil {
 		t.Fatalf("read ADR file: %v", err)
@@ -403,7 +414,7 @@ func TestADRTool_Handle_WithAlternatives(t *testing.T) {
 }
 
 func TestADRTool_Handle_WithoutAlternatives(t *testing.T) {
-	_, cleanup, change := createActiveChange(t, changes.TypeFeature, changes.SizeLarge, "no alternatives")
+	tmpDir, cleanup, _ := createActiveChange(t, changes.TypeFeature, changes.SizeLarge, "no alternatives")
 	defer cleanup()
 
 	store := changes.NewFileStore()
@@ -422,8 +433,7 @@ func TestADRTool_Handle_WithoutAlternatives(t *testing.T) {
 	}
 
 	// Verify file content does NOT include alternatives section.
-	cwd, _ := os.Getwd()
-	adrPath := filepath.Join(cwd, "sdd", "changes", change.ID, "adrs", "ADR-001.md")
+	adrPath := filepath.Join(tmpDir, "docs", "adrs", "001-simple-decision.md")
 	data, err := os.ReadFile(adrPath)
 	if err != nil {
 		t.Fatalf("read ADR file: %v", err)
@@ -548,5 +558,83 @@ func TestADRTool_Handle_WhitespaceFields(t *testing.T) {
 				t.Error("should return error for whitespace-only required field")
 			}
 		})
+	}
+}
+
+// --- Unit tests for ADR helpers ---
+
+func TestNextADRNumber_EmptyDir(t *testing.T) {
+	dir := t.TempDir()
+	if got := nextADRNumber(dir); got != 1 {
+		t.Errorf("nextADRNumber(empty) = %d, want 1", got)
+	}
+}
+
+func TestNextADRNumber_WithExisting(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "001-first.md"), []byte(""), 0o644)
+	os.WriteFile(filepath.Join(dir, "002-second.md"), []byte(""), 0o644)
+
+	if got := nextADRNumber(dir); got != 3 {
+		t.Errorf("nextADRNumber = %d, want 3", got)
+	}
+}
+
+func TestNextADRNumber_NonSequential(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "001-first.md"), []byte(""), 0o644)
+	os.WriteFile(filepath.Join(dir, "005-jumped.md"), []byte(""), 0o644)
+
+	if got := nextADRNumber(dir); got != 6 {
+		t.Errorf("nextADRNumber = %d, want 6", got)
+	}
+}
+
+func TestNextADRNumber_IgnoresNonMatching(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "README.md"), []byte(""), 0o644)
+	os.WriteFile(filepath.Join(dir, "001-first.md"), []byte(""), 0o644)
+
+	if got := nextADRNumber(dir); got != 2 {
+		t.Errorf("nextADRNumber = %d, want 2", got)
+	}
+}
+
+func TestSlugifyTitle(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"Use PostgreSQL over MongoDB", "use-postgresql-over-mongodb"},
+		{"Fix FTS5 empty query crash", "fix-fts5-empty-query-crash"},
+		{"Simple", "simple"},
+		{"  Multiple   Spaces  ", "multiple-spaces"},
+		{"Special!@#Characters$%^", "special-characters"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.input, func(t *testing.T) {
+			if got := slugifyTitle(tc.input); got != tc.want {
+				t.Errorf("slugifyTitle(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestListADRFiles(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "002-second.md"), []byte(""), 0o644)
+	os.WriteFile(filepath.Join(dir, "001-first.md"), []byte(""), 0o644)
+	os.WriteFile(filepath.Join(dir, "README.txt"), []byte(""), 0o644) // not .md
+
+	files := listADRFiles(dir)
+	if len(files) != 2 {
+		t.Fatalf("listADRFiles = %d files, want 2", len(files))
+	}
+	if files[0] != "001-first.md" {
+		t.Errorf("files[0] = %q, want 001-first.md", files[0])
+	}
+	if files[1] != "002-second.md" {
+		t.Errorf("files[1] = %q, want 002-second.md", files[1])
 	}
 }

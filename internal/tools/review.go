@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/HendryAvila/Hoofy/internal/config"
 	"github.com/HendryAvila/Hoofy/internal/memory"
 	"github.com/mark3labs/mcp-go/mcp"
 )
@@ -19,7 +20,7 @@ import (
 // checklist item references a specific spec ID (FR-XXX, BRC-XXX, etc.).
 //
 // Standalone by design (ADR: three-feature design) — works without an
-// active change pipeline or sdd.json.
+// active change pipeline or hoofy.json.
 type ReviewTool struct {
 	memStore *memory.Store // nullable — degrades gracefully
 }
@@ -37,7 +38,7 @@ func (t *ReviewTool) Definition() mcp.Tool {
 			"Generate a spec-aware code review checklist for a given change. "+
 				"Parses project specs (requirements, business rules, design, ADRs) "+
 				"and generates verification items that reference specific spec IDs. "+
-				"Works WITHOUT an active change pipeline or sdd.json — standalone tool. "+
+				"Works WITHOUT an active change pipeline or hoofy.json — standalone tool. "+
 				"The AI then reviews actual code against this checklist.",
 		),
 		mcp.WithString("change_description",
@@ -223,7 +224,7 @@ var requirementPattern = regexp.MustCompile(`^\s*-\s*\*\*([FN](?:FR|R)-\d+)\*\*:
 
 // parseRequirements reads requirements.md and extracts FR/NFR lines that match keywords.
 func (t *ReviewTool) parseRequirements(cwd string, keywords []string) []checklistItem {
-	content := readFileContent(filepath.Join(cwd, "sdd", "requirements.md"))
+	content := readFileContent(filepath.Join(config.DocsPath(cwd), "requirements.md"))
 	if content == "" {
 		return nil
 	}
@@ -254,7 +255,7 @@ var constraintPattern = regexp.MustCompile(`(?i)^\s*-\s*(?:\*\*([^*]+)\*\*:?\s*)
 
 // parseBusinessRules reads business-rules.md and extracts constraints that match keywords.
 func (t *ReviewTool) parseBusinessRules(cwd string, keywords []string) []checklistItem {
-	content := readFileContent(filepath.Join(cwd, "sdd", "business-rules.md"))
+	content := readFileContent(filepath.Join(config.DocsPath(cwd), "business-rules.md"))
 	if content == "" {
 		return nil
 	}
@@ -307,7 +308,7 @@ func (t *ReviewTool) parseBusinessRules(cwd string, keywords []string) []checkli
 
 // parseDesign reads design.md and extracts component sections that match keywords.
 func (t *ReviewTool) parseDesign(cwd string, keywords []string) []checklistItem {
-	content := readFileContent(filepath.Join(cwd, "sdd", "design.md"))
+	content := readFileContent(filepath.Join(config.DocsPath(cwd), "design.md"))
 	if content == "" {
 		return nil
 	}
