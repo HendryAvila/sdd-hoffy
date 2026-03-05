@@ -5,20 +5,27 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/HendryAvila/Hoofy/internal/config"
+	"github.com/HendryAvila/Hoofy/internal/templates"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
+// agentSectionMarker is used to detect if the Hoofy section already exists
+// in CLAUDE.md or AGENTS.md (idempotent append).
+const agentSectionMarker = "## Hoofy SDD Project"
+
 // InitTool handles the sdd_init_project MCP tool.
-// It creates the sdd/ directory structure and initial configuration.
+// It creates the docs/ directory structure and initial configuration.
 type InitTool struct {
-	store config.Store
+	store    config.Store
+	renderer templates.Renderer
 }
 
-// NewInitTool creates an InitTool with the given config store.
-func NewInitTool(store config.Store) *InitTool {
-	return &InitTool{store: store}
+// NewInitTool creates an InitTool with the given config store and template renderer.
+func NewInitTool(store config.Store, renderer templates.Renderer) *InitTool {
+	return &InitTool{store: store, renderer: renderer}
 }
 
 // Definition returns the MCP tool definition for registration.
@@ -26,7 +33,7 @@ func (t *InitTool) Definition() mcp.Tool {
 	return mcp.NewTool("sdd_init_project",
 		mcp.WithDescription(
 			"Initialize a new SDD (Spec-Driven Development) project. "+
-				"Creates the sdd/ directory with configuration and empty templates. "+
+				"Creates the docs/ directory with configuration and empty templates. "+
 				"This is always the first step in the SDD pipeline.",
 		),
 		mcp.WithString("name",
@@ -76,10 +83,10 @@ func (t *InitTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 	}
 
 	// Create directory structure.
-	sddDir := config.SDDPath(projectRoot)
+	docsDir := config.DocsPath(projectRoot)
 	dirs := []string{
-		sddDir,
-		filepath.Join(sddDir, "history"),
+		docsDir,
+		filepath.Join(docsDir, "history"),
 	}
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -93,6 +100,14 @@ func (t *InitTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 		return nil, fmt.Errorf("saving config: %w", err)
 	}
 
+	// Generate and write/append agent instructions file.
+	agentFile, agentAction, err := t.writeAgentInstructions(projectRoot, name, config.DocsDir)
+	if err != nil {
+		// Non-fatal: log but don't fail initialization.
+		agentFile = ""
+		agentAction = "skipped (error: " + err.Error() + ")"
+	}
+
 	// Build response based on mode.
 	modeLabel := "Guided"
 	modeHint := "I'll walk you through each step with examples and explanations."
@@ -101,20 +116,98 @@ func (t *InitTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 		modeHint = "Streamlined flow — I'll ask fewer questions and accept technical input directly."
 	}
 
+	agentLine := ""
+	if agentFile != "" {
+		agentLine = fmt.Sprintf("├── %s   # Agent instructions (%s)\n", filepath.Base(agentFile), agentAction)
+	}
+
 	response := fmt.Sprintf(
 		"# SDD Project Initialized\n\n"+
 			"**Project:** %s\n"+
 			"**Mode:** %s\n"+
 			"**Location:** `%s/`\n\n"+
 			"## What was created\n\n"+
-			"```\nsdd/\n├── sdd.json          # Project configuration\n└── history/          # For completed changes\n```\n\n"+
+			"```\n%s/\n├── hoofy.json        # Project configuration\n└── history/          # For completed changes\n```\n\n"+
+			"%s"+
 			"## Next Step\n\n"+
-			"The pipeline is now at **Stage 1: Propose**.\n\n"+
+			"The pipeline is now at **Stage 1: Principles**.\n\n"+
 			"%s\n\n"+
-			"Use `sdd_create_proposal` with your idea to generate a structured proposal.\n\n"+
-			"**Tell me about your project idea** — what are you trying to build?",
-		name, modeLabel, config.SDDDir, modeHint,
+			"Use `sdd_create_principles` to define your project's golden invariants.\n\n"+
+			"**Tell me about your project's core beliefs** — what rules should NEVER be broken?",
+		name, modeLabel, config.DocsDir, config.DocsDir,
+		agentLine, modeHint,
 	)
 
 	return mcp.NewToolResultText(response), nil
+}
+
+// writeAgentInstructions generates the Hoofy SDD section and writes or appends
+// it to the appropriate agent instructions file.
+//
+// Detection order:
+//  1. CLAUDE.md exists → append to it
+//  2. AGENTS.md exists → append to it
+//  3. Neither → create AGENTS.md
+//
+// Idempotent: if the marker "## Hoofy SDD Project" already exists, skip.
+// Returns (filepath, action, error) where action is "created" or "appended".
+func (t *InitTool) writeAgentInstructions(projectRoot, projectName, docsDir string) (string, string, error) {
+	data := templates.AgentInstructionsData{
+		Name:    projectName,
+		DocsDir: docsDir,
+	}
+
+	content, err := t.renderer.Render(templates.AgentInstructions, data)
+	if err != nil {
+		return "", "", fmt.Errorf("rendering agent instructions: %w", err)
+	}
+
+	// Detect which file to use.
+	claudePath := filepath.Join(projectRoot, "CLAUDE.md")
+	agentsPath := filepath.Join(projectRoot, "AGENTS.md")
+
+	targetPath := agentsPath
+	action := "created"
+
+	if fileExists(claudePath) {
+		targetPath = claudePath
+		action = "appended"
+	} else if fileExists(agentsPath) {
+		targetPath = agentsPath
+		action = "appended"
+	}
+
+	// If the file exists, check for idempotency.
+	if action == "appended" {
+		existing, err := os.ReadFile(targetPath)
+		if err != nil {
+			return "", "", fmt.Errorf("reading %s: %w", filepath.Base(targetPath), err)
+		}
+		if strings.Contains(string(existing), agentSectionMarker) {
+			// Section already exists — skip.
+			return targetPath, "already present", nil
+		}
+		// Append with a separator.
+		f, err := os.OpenFile(targetPath, os.O_APPEND|os.O_WRONLY, 0o644)
+		if err != nil {
+			return "", "", fmt.Errorf("opening %s for append: %w", filepath.Base(targetPath), err)
+		}
+		defer f.Close()
+		if _, err := f.WriteString("\n" + content); err != nil {
+			return "", "", fmt.Errorf("appending to %s: %w", filepath.Base(targetPath), err)
+		}
+		return targetPath, action, nil
+	}
+
+	// Create new file.
+	if err := os.WriteFile(targetPath, []byte(content), 0o644); err != nil {
+		return "", "", fmt.Errorf("creating %s: %w", filepath.Base(targetPath), err)
+	}
+	return targetPath, action, nil
+}
+
+// fileExists returns true if the path exists and is a regular file.
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
 }

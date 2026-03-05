@@ -1,0 +1,36 @@
+
+## Hoofy SDD Project
+
+This project uses **Spec-Driven Development (SDD)** managed by [Hoofy](https://github.com/HendryAvila/Hoofy).
+
+**Project:** {{ .Name }}
+**Specs directory:** `{{ .DocsDir }}/`
+**Config file:** `{{ .DocsDir }}/hoofy.json`
+
+### Pipeline
+
+Hoofy enforces a sequential pipeline before coding:
+
+```
+init → principles → charter → specify → business-rules → clarify → design → tasks → validate
+```
+
+### Key Rules
+
+- **Never skip stages** — the pipeline is sequential for a reason.
+- **Specs before code** — use `sdd_get_context` to read existing specs before making changes.
+- **Changes go through the change pipeline** — use `sdd_change` for any non-trivial modification.
+- **ADRs live in `{{ .DocsDir }}/adrs/`** — use `sdd_adr` to capture architectural decisions.
+- **Read `{{ .DocsDir }}/hoofy.json`** for current pipeline state.
+
+### Available Tools
+
+| Tool | Purpose |
+|------|---------|
+| `sdd_get_context` | Read current pipeline state and artifacts |
+| `sdd_change` | Start a new change (feature, fix, refactor, enhancement) |
+| `sdd_change_advance` | Advance the current change to the next stage |
+| `sdd_adr` | Capture an Architecture Decision Record |
+| `sdd_audit` | Compare specs against actual code |
+| `sdd_suggest_context` | Get relevant specs for a task |
+| `sdd_review` | Generate a spec-aware review checklist |
