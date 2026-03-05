@@ -17,50 +17,163 @@ func TestNewRenderer_Succeeds(t *testing.T) {
 	}
 }
 
-// --- Render: Proposal ---
+// --- Render: Principles ---
 
-func TestRender_Proposal(t *testing.T) {
+func TestRender_Principles(t *testing.T) {
 	r, err := NewRenderer()
 	if err != nil {
 		t.Fatalf("NewRenderer: %v", err)
 	}
 
-	data := ProposalData{
+	data := PrinciplesData{
+		Name:            "Test Project",
+		Principles:      "- Never store passwords in plain text\n- All API responses must include correlation IDs",
+		CodingStandards: "- Use conventional commits\n- No magic numbers",
+		DomainTruths:    "- Prices are always in cents (integer)\n- All timestamps are UTC",
+	}
+
+	result, err := r.Render(Principles, data)
+	if err != nil {
+		t.Fatalf("Render(Principles) failed: %v", err)
+	}
+
+	checks := []string{
+		"# Test Project — Principles",
+		"## Golden Invariants",
+		"Never store passwords in plain text",
+		"correlation IDs",
+		"## Coding Standards",
+		"conventional commits",
+		"## Domain Truths",
+		"Prices are always in cents",
+		"Hoofy", // Attribution link.
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(result, check) {
+			t.Errorf("Principles output missing: %q", check)
+		}
+	}
+}
+
+func TestRender_Principles_OptionalSections(t *testing.T) {
+	r, err := NewRenderer()
+	if err != nil {
+		t.Fatalf("NewRenderer: %v", err)
+	}
+
+	// Only required field — optional sections should NOT render.
+	data := PrinciplesData{
+		Name:       "Test Project",
+		Principles: "- No business logic in controllers",
+	}
+
+	result, err := r.Render(Principles, data)
+	if err != nil {
+		t.Fatalf("Render(Principles) failed: %v", err)
+	}
+
+	if !strings.Contains(result, "## Golden Invariants") {
+		t.Error("should contain Golden Invariants section")
+	}
+	if strings.Contains(result, "## Coding Standards") {
+		t.Error("Coding Standards should NOT render when empty")
+	}
+	if strings.Contains(result, "## Domain Truths") {
+		t.Error("Domain Truths should NOT render when empty")
+	}
+}
+
+// --- Render: Charter ---
+
+func TestRender_Charter(t *testing.T) {
+	r, err := NewRenderer()
+	if err != nil {
+		t.Fatalf("NewRenderer: %v", err)
+	}
+
+	data := CharterData{
 		Name:             "Test Project",
 		ProblemStatement: "Users struggle with X",
 		TargetUsers:      "Developers and designers",
 		ProposedSolution: "Build a tool that does Y",
-		OutOfScope:       "Mobile support, offline mode",
 		SuccessCriteria:  "50% reduction in time spent",
-		OpenQuestions:    "What about edge case Z?",
+		DomainContext:    "B2B SaaS for healthcare",
+		Stakeholders:     "Product Owner, CTO",
+		Vision:           "Become the default tool",
+		Boundaries:       "### In Scope\n- Web app\n### Out of Scope\n- Mobile",
+		ExistingSystems:  "Legacy PHP app",
+		Constraints:      "AWS GovCloud, $500/month",
 	}
 
-	result, err := r.Render(Proposal, data)
+	result, err := r.Render(Charter, data)
 	if err != nil {
-		t.Fatalf("Render(Proposal) failed: %v", err)
+		t.Fatalf("Render(Charter) failed: %v", err)
 	}
 
-	// Verify key sections are present.
 	checks := []string{
-		"# Test Project — Proposal",
+		"# Test Project — Charter",
 		"## Problem Statement",
 		"Users struggle with X",
 		"## Target Users",
 		"Developers and designers",
 		"## Proposed Solution",
 		"Build a tool that does Y",
-		"## Out of Scope",
-		"Mobile support, offline mode",
 		"## Success Criteria",
 		"50% reduction in time spent",
-		"## Open Questions",
-		"What about edge case Z?",
-		"SDD-Hoffy", // Attribution link.
+		"## Domain Context",
+		"B2B SaaS for healthcare",
+		"## Stakeholders",
+		"Product Owner, CTO",
+		"## Vision",
+		"Become the default tool",
+		"## Boundaries",
+		"Out of Scope",
+		"## Existing Systems",
+		"Legacy PHP app",
+		"## Constraints",
+		"AWS GovCloud",
+		"Hoofy", // Attribution link.
 	}
 
 	for _, check := range checks {
 		if !strings.Contains(result, check) {
-			t.Errorf("Proposal output missing: %q", check)
+			t.Errorf("Charter output missing: %q", check)
+		}
+	}
+}
+
+func TestRender_Charter_OptionalSections(t *testing.T) {
+	r, err := NewRenderer()
+	if err != nil {
+		t.Fatalf("NewRenderer: %v", err)
+	}
+
+	// Only required fields — optional sections should NOT render.
+	data := CharterData{
+		Name:             "Test Project",
+		ProblemStatement: "Problem",
+		TargetUsers:      "Users",
+		ProposedSolution: "Solution",
+		SuccessCriteria:  "Criteria",
+	}
+
+	result, err := r.Render(Charter, data)
+	if err != nil {
+		t.Fatalf("Render(Charter) failed: %v", err)
+	}
+
+	// Required sections must be present.
+	for _, section := range []string{"## Problem Statement", "## Target Users", "## Proposed Solution", "## Success Criteria"} {
+		if !strings.Contains(result, section) {
+			t.Errorf("Charter should contain required section: %q", section)
+		}
+	}
+
+	// Optional sections must NOT be present.
+	for _, section := range []string{"## Domain Context", "## Stakeholders", "## Vision", "## Boundaries", "## Existing Systems", "## Constraints"} {
+		if strings.Contains(result, section) {
+			t.Errorf("Charter should NOT contain optional section when empty: %q", section)
 		}
 	}
 }
@@ -175,21 +288,21 @@ func TestRender_UnknownTemplate(t *testing.T) {
 
 // --- Render: Empty data ---
 
-func TestRender_EmptyProposalData(t *testing.T) {
+func TestRender_EmptyCharterData(t *testing.T) {
 	r, err := NewRenderer()
 	if err != nil {
 		t.Fatalf("NewRenderer: %v", err)
 	}
 
 	// Should render without error even with zero values.
-	result, err := r.Render(Proposal, ProposalData{})
+	result, err := r.Render(Charter, CharterData{})
 	if err != nil {
-		t.Fatalf("Render(Proposal, empty) failed: %v", err)
+		t.Fatalf("Render(Charter, empty) failed: %v", err)
 	}
 
 	// Structure should still be present.
 	if !strings.Contains(result, "## Problem Statement") {
-		t.Error("empty proposal should still contain section headers")
+		t.Error("empty charter should still contain section headers")
 	}
 }
 
@@ -299,7 +412,6 @@ func TestRender_Design_WithQualityAnalysis(t *testing.T) {
 		DataModel:            "### User\n| id | UUID |",
 		Infrastructure:       "Docker + Railway",
 		Security:             "JWT with refresh tokens",
-		DesignDecisions:      "### ADR-001: Go over Node.js",
 		QualityAnalysis:      "### SOLID Compliance\n- SRP: AuthModule has single responsibility\n\n### Potential Code Smells\n- No Shotgun Surgery detected\n\n### Coupling & Cohesion\n- Low coupling between modules\n\n### Mitigations\n- DIP via interface injection",
 	}
 
@@ -324,8 +436,6 @@ func TestRender_Design_WithQualityAnalysis(t *testing.T) {
 		"Docker + Railway",
 		"## Security Considerations",
 		"JWT with refresh tokens",
-		"## Design Decisions",
-		"ADR-001",
 		"## Structural Quality Analysis",
 		"SOLID Compliance",
 		"Shotgun Surgery",

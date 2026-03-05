@@ -10,33 +10,33 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// ProposeTool handles the sdd_create_proposal MCP tool.
-// It saves a structured proposal document with content provided by the AI.
-type ProposeTool struct {
+// CharterTool handles the sdd_create_charter MCP tool.
+// It saves a structured project charter with content provided by the AI.
+type CharterTool struct {
 	store    config.Store
 	renderer templates.Renderer
 	bridge   StageObserver
 }
 
-// NewProposeTool creates a ProposeTool with its dependencies.
-func NewProposeTool(store config.Store, renderer templates.Renderer) *ProposeTool {
-	return &ProposeTool{store: store, renderer: renderer}
+// NewCharterTool creates a CharterTool with its dependencies.
+func NewCharterTool(store config.Store, renderer templates.Renderer) *CharterTool {
+	return &CharterTool{store: store, renderer: renderer}
 }
 
 // SetBridge injects an optional StageObserver that gets notified
-// when the propose stage completes. Nil is safe (disables bridge).
-func (t *ProposeTool) SetBridge(obs StageObserver) { t.bridge = obs }
+// when the charter stage completes. Nil is safe (disables bridge).
+func (t *CharterTool) SetBridge(obs StageObserver) { t.bridge = obs }
 
 // Definition returns the MCP tool definition for registration.
-func (t *ProposeTool) Definition() mcp.Tool {
-	return mcp.NewTool("sdd_create_proposal",
+func (t *CharterTool) Definition() mcp.Tool {
+	return mcp.NewTool("sdd_create_charter",
 		mcp.WithDescription(
-			"Save a structured proposal document for the SDD project. "+
-				"This is Stage 1 of the SDD pipeline. "+
+			"Save a structured project charter for the SDD project. "+
+				"This is Stage 2 of the SDD pipeline. "+
 				"IMPORTANT: Before calling this tool, the AI MUST first discuss the idea with the user, "+
 				"ask clarifying questions, and then generate the content for each section. "+
 				"Pass the ACTUAL content (not placeholders) for each section. "+
-				"Requires: sdd_init_project must have been run first.",
+				"Requires: sdd_create_principles must have been run first.",
 		),
 		mcp.WithString("problem_statement",
 			mcp.Required(),
@@ -57,31 +57,52 @@ func (t *ProposeTool) Definition() mcp.Tool {
 				"just what it does for the user. "+
 				"Example: 'A simple web app where freelancers log hours per project and see weekly reports'"),
 		),
-		mcp.WithString("out_of_scope",
-			mcp.Required(),
-			mcp.Description("3-5 things this project will NOT do. This prevents scope creep. Use markdown list format. "+
-				"Example: '- Will NOT handle invoicing or payments\\n- Will NOT support offline mode in v1'"),
-		),
 		mcp.WithString("success_criteria",
 			mcp.Required(),
 			mcp.Description("2-4 measurable outcomes that define success. Use markdown list format. "+
 				"Example: '- Users can log time in under 10 seconds\\n- 80% of test users complete onboarding without help'"),
 		),
-		mcp.WithString("open_questions",
-			mcp.Description("Things still undecided or unknown. Use markdown list format. "+
-				"Example: '- Should we support mobile from day one?\\n- What's the deployment target?'"),
+		mcp.WithString("domain_context",
+			mcp.Description("The business domain context — industry, market, regulatory environment. "+
+				"Example: 'B2B SaaS for healthcare compliance. Subject to HIPAA regulations.'"),
+		),
+		mcp.WithString("stakeholders",
+			mcp.Description("Key stakeholders and their interests. Use markdown list format. "+
+				"Example: '- **Product Owner**: Prioritizes features based on customer feedback\\n"+
+				"- **CTO**: Concerned with scalability and technical debt'"),
+		),
+		mcp.WithString("vision",
+			mcp.Description("Long-term vision for the project — where it's headed beyond v1. "+
+				"Example: 'Become the default time-tracking tool for freelancers, expanding to team management and invoicing by v3.'"),
+		),
+		mcp.WithString("boundaries",
+			mcp.Description("What's in scope and what's explicitly out of scope. Replaces the old 'out_of_scope' field "+
+				"with a more complete view. Use markdown list format. "+
+				"Example: '### In Scope\\n- Web app for time tracking\\n- CSV export\\n\\n### Out of Scope\\n- Mobile app\\n- Invoicing'"),
+		),
+		mcp.WithString("existing_systems",
+			mcp.Description("Systems this project must integrate with or replace. "+
+				"Example: '- Migrating from legacy PHP app running on shared hosting\\n- Must integrate with existing Slack workspace for notifications'"),
+		),
+		mcp.WithString("constraints",
+			mcp.Description("Technical, business, or regulatory constraints that shape the solution. "+
+				"Example: '- Must deploy to AWS GovCloud (FedRAMP requirement)\\n- Budget: $500/month max for infrastructure\\n- Team: 2 developers, 1 designer'"),
 		),
 	)
 }
 
-// Handle processes the sdd_create_proposal tool call.
-func (t *ProposeTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// Handle processes the sdd_create_charter tool call.
+func (t *CharterTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	problemStatement := req.GetString("problem_statement", "")
 	targetUsers := req.GetString("target_users", "")
 	proposedSolution := req.GetString("proposed_solution", "")
-	outOfScope := req.GetString("out_of_scope", "")
 	successCriteria := req.GetString("success_criteria", "")
-	openQuestions := req.GetString("open_questions", "")
+	domainContext := req.GetString("domain_context", "")
+	stakeholders := req.GetString("stakeholders", "")
+	vision := req.GetString("vision", "")
+	boundaries := req.GetString("boundaries", "")
+	existingSystems := req.GetString("existing_systems", "")
+	constraints := req.GetString("constraints", "")
 
 	// Validate required fields.
 	if problemStatement == "" {
@@ -92,9 +113,6 @@ func (t *ProposeTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	}
 	if proposedSolution == "" {
 		return mcp.NewToolResultError("'proposed_solution' is required — describe what we're building"), nil
-	}
-	if outOfScope == "" {
-		return mcp.NewToolResultError("'out_of_scope' is required — what does this project NOT do?"), nil
 	}
 	if successCriteria == "" {
 		return mcp.NewToolResultError("'success_criteria' is required — how do we know this succeeded?"), nil
@@ -111,32 +129,36 @@ func (t *ProposeTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	}
 
 	// Validate we're at the right stage.
-	if err := pipeline.RequireStage(cfg, config.StagePropose); err != nil {
+	if err := pipeline.RequireStage(cfg, config.StageCharter); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	pipeline.MarkInProgress(cfg)
 
-	// Build proposal with REAL content from the AI.
-	data := templates.ProposalData{
+	// Build charter with REAL content from the AI.
+	data := templates.CharterData{
 		Name:             cfg.Name,
 		ProblemStatement: problemStatement,
 		TargetUsers:      targetUsers,
 		ProposedSolution: proposedSolution,
-		OutOfScope:       outOfScope,
 		SuccessCriteria:  successCriteria,
-		OpenQuestions:    openQuestions,
+		DomainContext:    domainContext,
+		Stakeholders:     stakeholders,
+		Vision:           vision,
+		Boundaries:       boundaries,
+		ExistingSystems:  existingSystems,
+		Constraints:      constraints,
 	}
 
-	content, err := t.renderer.Render(templates.Proposal, data)
+	content, err := t.renderer.Render(templates.Charter, data)
 	if err != nil {
-		return nil, fmt.Errorf("rendering proposal: %w", err)
+		return nil, fmt.Errorf("rendering charter: %w", err)
 	}
 
-	// Write the proposal file.
-	proposalPath := config.StagePath(projectRoot, config.StagePropose)
-	if err := writeStageFile(proposalPath, content); err != nil {
-		return nil, fmt.Errorf("writing proposal: %w", err)
+	// Write the charter file.
+	charterPath := config.StagePath(projectRoot, config.StageCharter)
+	if err := writeStageFile(charterPath, content); err != nil {
+		return nil, fmt.Errorf("writing charter: %w", err)
 	}
 
 	// Advance pipeline to next stage.
@@ -148,20 +170,20 @@ func (t *ProposeTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		return nil, fmt.Errorf("saving config: %w", err)
 	}
 
-	notifyObserver(t.bridge, cfg.Name, config.StagePropose, content)
+	notifyObserver(t.bridge, cfg.Name, config.StageCharter, content)
 
 	response := fmt.Sprintf(
-		"# Proposal Created\n\n"+
-			"Saved to `sdd/proposal.md`\n\n"+
+		"# Charter Created\n\n"+
+			"Saved to `%s/charter.md`\n\n"+
 			"## Content\n\n%s\n\n"+
 			"---\n\n"+
 			"## Next Step\n\n"+
-			"Pipeline advanced to **Stage 2: Specify**.\n\n"+
-			"Now analyze this proposal and extract formal requirements using MoSCoW prioritization "+
+			"Pipeline advanced to **Stage 3: Specify**.\n\n"+
+			"Now analyze this charter and extract formal requirements using MoSCoW prioritization "+
 			"(Must Have, Should Have, Could Have, Won't Have). Each requirement needs a unique ID "+
 			"(FR-001 for functional, NFR-001 for non-functional).\n\n"+
 			"Call `sdd_generate_requirements` with the extracted requirements.",
-		content,
+		config.DocsDir, content,
 	)
 
 	return mcp.NewToolResultText(response), nil

@@ -17,12 +17,14 @@ var templateFS embed.FS
 
 // Name constants for each template.
 const (
-	Proposal       = "proposal.md.tmpl"
-	Requirements   = "requirements.md.tmpl"
-	BusinessRules  = "business-rules.md.tmpl"
-	Clarifications = "clarifications.md.tmpl"
-	Design         = "design.md.tmpl"
-	Tasks          = "tasks.md.tmpl"
+	Principles        = "principles.md.tmpl"
+	Charter           = "charter.md.tmpl"
+	Requirements      = "requirements.md.tmpl"
+	BusinessRules     = "business-rules.md.tmpl"
+	Clarifications    = "clarifications.md.tmpl"
+	Design            = "design.md.tmpl"
+	Tasks             = "tasks.md.tmpl"
+	AgentInstructions = "agent-instructions.md.tmpl"
 )
 
 // Renderer renders markdown templates with provided data.
@@ -57,15 +59,27 @@ func (r *EmbedRenderer) Render(templateName string, data any) (string, error) {
 
 // --- Template data structures ---
 
-// ProposalData holds the data for rendering a proposal.
-type ProposalData struct {
+// PrinciplesData holds the data for rendering project principles.
+type PrinciplesData struct {
+	Name            string
+	Principles      string
+	CodingStandards string
+	DomainTruths    string
+}
+
+// CharterData holds the data for rendering a project charter.
+type CharterData struct {
 	Name             string
 	ProblemStatement string
 	TargetUsers      string
 	ProposedSolution string
-	OutOfScope       string
 	SuccessCriteria  string
-	OpenQuestions    string
+	DomainContext    string
+	Stakeholders     string
+	Vision           string
+	Boundaries       string
+	ExistingSystems  string
+	Constraints      string
 }
 
 // RequirementsData holds the data for rendering requirements.
@@ -101,7 +115,6 @@ type DesignData struct {
 	DataModel            string
 	Infrastructure       string
 	Security             string
-	DesignDecisions      string
 	QualityAnalysis      string
 }
 
@@ -124,4 +137,10 @@ type BusinessRulesData struct {
 	Constraints string
 	Derivations string // optional: computed/inferred knowledge
 	Glossary    string // optional: additional domain vocabulary
+}
+
+// AgentInstructionsData holds the data for rendering the agent instructions section.
+type AgentInstructionsData struct {
+	Name    string
+	DocsDir string
 }
