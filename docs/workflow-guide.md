@@ -1,6 +1,6 @@
 # Workflow Guide
 
-This guide walks you through real workflows using Hoofy's three systems: **Memory**, **Change Pipeline**, and **Project Pipeline**. Each section shows what happens step by step, so you know what to expect.
+This guide walks you through real workflows using Hoofy's systems: **Memory**, **Change Pipeline**, **Project Pipeline**, **Bootstrap**, and **Standalone tools**. Each section shows what happens step by step, so you know what to expect.
 
 ---
 
@@ -27,6 +27,8 @@ This guide walks you through real workflows using Hoofy's three systems: **Memor
 | Refactor code | **Change Pipeline** | `sdd_change(type: "refactor", size: "medium")` |
 | Quick task without starting a pipeline | **Standalone** | `sdd_suggest_context` |
 | Review code against specs | **Standalone** | `sdd_review` |
+| Audit specs against actual code | **Standalone** | `sdd_audit` |
+| Add specs to existing project with no specs | **Bootstrap** | `sdd_reverse_engineer` |
 | Remember a decision or discovery | **Memory** | `mem_save` |
 | Pick up where I left off | **Memory** | `mem_context` |
 
@@ -80,21 +82,23 @@ The AI already has your goals, constraints, and decisions in memory — the pipe
 
 ## Workflow 1: New Project (Greenfield)
 
-For building something from scratch. The pipeline forces you to think through requirements before writing a single line of code.
+For building something from scratch. The 9-stage pipeline forces you to think through principles, requirements, and architecture before writing a single line of code.
 
 ### The Pipeline
 
 ```mermaid
 flowchart LR
-    A[Init] --> B[Propose]
+    A[Init] --> A2[Principles]
+    A2 --> B[Charter]
     B --> C[Requirements]
     C --> BR["Business\nRules"]
     BR --> D{Clarity Gate}
     D -->|Score < threshold| C
-    D -->|Score ≥ threshold| E[Design]
+    D -->|Score >= threshold| E[Design]
     E --> F[Tasks]
     F --> G[Validate]
 
+    style A2 fill:#e879f9,stroke:#c026d3,color:#000
     style BR fill:#e879f9,stroke:#c026d3,color:#000
     style D fill:#f59e0b,stroke:#d97706,color:#000
     style G fill:#10b981,stroke:#059669,color:#fff
@@ -104,28 +108,43 @@ flowchart LR
 
 **Stage 1 — Init** (`sdd_init_project`)
 
-You tell the AI what you want to build. It creates the `sdd/` directory and project config.
+You tell the AI what you want to build. It creates the `docs/` directory with `hoofy.json` and auto-generates an SDD section in your project's agent file (`CLAUDE.md`, `AGENTS.md`, or creates `AGENTS.md` if none exists).
 
 > **You**: "I want to build a CLI tool that tracks daily habits"
 >
-> **AI**: *Creates `sdd/sdd.json` with project name and mode (guided/expert)*
+> **AI**: *Creates `docs/hoofy.json` with project name and mode (guided/expert)*
 
-**Stage 2 — Propose** (`sdd_create_proposal`)
+**Stage 2 — Principles** (`sdd_create_principles`)
 
-The AI asks you questions to understand the problem, users, and scope. Then it writes a structured proposal with:
+Before writing any requirements, the pipeline captures **golden invariants** — project principles, coding standards, and domain truths that remain constant throughout the project lifecycle. These anchor every subsequent stage.
+
+> **You**: "It should be CLI-first, zero external dependencies, UNIX philosophy — do one thing well. Test coverage above 80%."
+>
+> **AI**: *Writes principles to `docs/principles.md`*
+
+Principles inform every downstream artifact — requirements must respect them, designs must implement them, and the Clarity Gate evaluates against them.
+
+**Stage 3 — Charter** (`sdd_create_charter`)
+
+The AI asks you questions to understand the problem, domain, and scope. Then it writes an enterprise-grade charter with:
 - Problem statement — what pain are you solving?
-- Target users — who is this for?
-- Proposed solution — what does it do (no tech details yet)?
-- Out of scope — what it does NOT do (prevents scope creep)
+- Domain context — what domain is this in?
+- Target users / stakeholders — who is this for?
+- Vision — what does it do?
+- Boundaries — what it does NOT do (prevents scope creep)
 - Success criteria — how do we know it works?
+- Existing systems — what's already in place?
+- Constraints — technical, business, or regulatory limitations
+
+Four fields are required (problem, users, vision, boundaries); six are optional for smaller projects.
 
 > **You**: "It's for developers who forget to exercise, drink water, etc."
 >
-> **AI**: *Writes proposal to `sdd/proposal.md`*
+> **AI**: *Writes charter to `docs/charter.md`*
 
-**Stage 3 — Requirements** (`sdd_generate_requirements`)
+**Stage 4 — Requirements** (`sdd_generate_requirements`)
 
-The AI reads the proposal and extracts formal requirements with MoSCoW prioritization:
+The AI reads the charter and extracts formal requirements with MoSCoW prioritization:
 - **Must Have** (FR-001, FR-002...) — launch blockers
 - **Should Have** — important but not blocking
 - **Could Have** — nice-to-have for the future
@@ -134,9 +153,9 @@ The AI reads the proposal and extracts formal requirements with MoSCoW prioritiz
 
 > **AI**: *"FR-001: Users can add a new habit with name and daily goal"*
 > **AI**: *"NFR-001: CLI response time must be under 200ms"*
-> **AI**: *Writes requirements to `sdd/requirements.md`*
+> **AI**: *Writes requirements to `docs/requirements.md`*
 
-**Stage 4 — Business Rules** (`sdd_create_business_rules`)
+**Stage 5 — Business Rules** (`sdd_create_business_rules`)
 
 The AI reads the requirements and extracts declarative business rules using the BRG (Business Rules Group) taxonomy and DDD Ubiquitous Language:
 
@@ -145,13 +164,13 @@ The AI reads the requirements and extracts declarative business rules using the 
 - **Constraints** — Conditions that must always be true (invariants)
 - **Derivations** — Values computed from other values
 
-> **AI**: *"RULE-001 (Constraint): A habit's daily goal must be a positive integer ≥ 1"*
+> **AI**: *"RULE-001 (Constraint): A habit's daily goal must be a positive integer >= 1"*
 > **AI**: *"RULE-002 (Fact): A user has zero or more habits. Each habit belongs to exactly one user."*
-> **AI**: *Writes rules to `sdd/business-rules.md`*
+> **AI**: *Writes rules to `docs/business-rules.md`*
 
 Rules are extracted FROM requirements and inform the Clarity Gate — the gate evaluates WITH the rules, not before them.
 
-**Stage 5 — Clarity Gate** (`sdd_clarify`) ⚡
+**Stage 6 — Clarity Gate** (`sdd_clarify`)
 
 This is the core innovation. The AI analyzes your requirements across **8 dimensions**:
 
@@ -178,7 +197,7 @@ If ambiguities are found, the AI asks you specific questions. You answer, it res
 >
 > **AI**: *Score jumps from 55 to 78 — gate passes*
 
-**Stage 6 — Design** (`sdd_create_design`)
+**Stage 7 — Design** (`sdd_create_design`)
 
 Now the AI writes the technical architecture:
 - Architecture overview and patterns
@@ -188,10 +207,13 @@ Now the AI writes the technical architecture:
 - API contracts (if applicable)
 - Security measures
 - Infrastructure and deployment
+- Structural quality analysis (SOLID compliance, code smell detection, coupling & cohesion)
 
-> **AI**: *Writes design to `sdd/design.md`*
+Architecture Decision Records (ADRs) are captured separately with `sdd_adr` and stored in `docs/adrs/` — not inline in the design document.
 
-**Stage 7 — Tasks** (`sdd_create_tasks`)
+> **AI**: *Writes design to `docs/design.md`*
+
+**Stage 8 — Tasks** (`sdd_create_tasks`)
 
 The AI breaks the design into atomic, implementable tasks. Each task has:
 - Unique ID (TASK-001)
@@ -202,31 +224,35 @@ The AI breaks the design into atomic, implementable tasks. Each task has:
 - A dependency graph showing parallelization opportunities
 - Optional **wave assignments** — tasks grouped into parallel execution waves (see [Wave Assignments](#wave-assignments) below)
 
-> **AI**: *"TASK-001: Set up project scaffolding → TASK-002: Implement habit storage → TASK-003: Add CLI commands..."*
-> **AI**: *Writes tasks to `sdd/tasks.md`*
+> **AI**: *"TASK-001: Set up project scaffolding -> TASK-002: Implement habit storage -> TASK-003: Add CLI commands..."*
+> **AI**: *Writes tasks to `docs/tasks.md`*
 
-**Stage 8 — Validate** (`sdd_validate`)
+**Stage 9 — Validate** (`sdd_validate`)
 
 Cross-artifact consistency check. The AI verifies:
 - Every requirement has at least one task covering it
 - Every component in the design has tasks assigned
 - No tasks reference non-existent requirements
-- No scope creep (tasks stay within proposal boundaries)
+- No scope creep (tasks stay within charter boundaries)
+- Structural quality analysis from design is verified against the task breakdown
 
 Verdict: **PASS**, **PASS_WITH_WARNINGS**, or **FAIL** (sends you back to fix gaps).
 
 ### What you get
 
 ```
-sdd/
-├── sdd.json           # Pipeline state and config
-├── proposal.md        # Problem, users, solution, scope
-├── requirements.md    # Formal requirements (MoSCoW)
-├── business-rules.md  # Declarative rules (BRG taxonomy + DDD)
-├── clarifications.md  # Clarity Gate Q&A
-├── design.md          # Technical architecture
-├── tasks.md           # Implementation breakdown
-└── validation.md      # Cross-check results
+docs/
+├── hoofy.json          # Pipeline state and config
+├── principles.md       # Golden invariants and coding standards
+├── charter.md          # Problem, domain, users, vision, boundaries
+├── requirements.md     # Formal requirements (MoSCoW)
+├── business-rules.md   # Declarative rules (BRG taxonomy + DDD)
+├── clarifications.md   # Clarity Gate Q&A
+├── design.md           # Technical architecture
+├── tasks.md            # Implementation breakdown
+├── validation.md       # Cross-check results
+└── adrs/               # Architecture Decision Records
+    └── 001-slug.md     # Individual ADR files
 ```
 
 Every artifact is a markdown file you can read, edit, and version control. The AI references these specs while coding — no more hallucinated features.
@@ -241,9 +267,9 @@ For ongoing development. The pipeline **adapts** — a small bug fix gets 4 stag
 
 ```mermaid
 flowchart LR
-    A[Create Change] --> CC["Context\nCheck"]
-    CC --> B[Opening Stage]
-    B --> C{More stages?}
+    A[Create Change] --> B[Opening Stage]
+    B --> CC["Context\nCheck"]
+    CC --> C{More stages?}
     C -->|Yes| D[Next Stage]
     D --> C
     C -->|No| E[Tasks]
@@ -254,46 +280,46 @@ flowchart LR
     style F fill:#10b981,stroke:#059669,color:#fff
 ```
 
-Every change — regardless of type or size — begins with a **context-check** stage. The tool scans existing specs, completed changes, memory observations, and convention files to detect conflicts before you proceed.
+Every change — regardless of type or size — includes a **context-check** stage. The tool scans existing specs, completed changes, memory observations, and convention files to detect conflicts before you proceed.
 
-The opening stage and intermediate stages change based on **type × size**:
+The opening stage and intermediate stages change based on **type x size**:
 
 ### Example: Small Fix (4 stages)
 
 > **You**: "The search crashes when the query is empty"
 
 ```
-context-check → describe → tasks → verify
+describe → context-check → tasks → verify
 ```
 
-The AI scans for conflicts, describes the bug, breaks the fix into tasks, and verifies. Quick, minimal ceremony — but safe.
+The AI describes the bug, scans for conflicts, breaks the fix into tasks, and verifies. Quick, minimal ceremony — but safe.
 
 ### Example: Medium Feature (5 stages)
 
 > **You**: "I want to add CSV export to the reports"
 
 ```
-context-check → propose → spec → tasks → verify
+charter → context-check → spec → tasks → verify
 ```
 
-The AI checks for conflicts, writes a brief proposal, extracts requirements, creates tasks, and verifies coverage.
+The AI writes a brief charter, checks for conflicts, extracts requirements, creates tasks, and verifies coverage.
 
 ### Example: Large Feature (7 stages)
 
 > **You**: "I want to add a plugin system with hooks and lifecycle management"
 
 ```
-context-check → propose → spec → clarify → design → tasks → verify
+charter → context-check → spec → clarify → design → tasks → verify
 ```
 
-Full ceremony — context check, proposal, requirements, Clarity Gate, architecture, tasks, validation. The same rigor as a greenfield project, scoped to the change.
+Full ceremony — charter, context check, requirements, Clarity Gate, architecture, tasks, validation. The same rigor as a greenfield project, scoped to the change.
 
 ### Change Artifacts
 
 Each change lives in its own directory:
 
 ```
-sdd/changes/
+docs/changes/
 └── fix-empty-query-crash/
     ├── change.json       # Metadata (type, size, stages, status)
     ├── context-check.md  # Conflict scan results
@@ -301,6 +327,8 @@ sdd/changes/
     ├── tasks.md          # Implementation breakdown
     └── verify.md         # Verification results
 ```
+
+Completed changes are archived to `docs/history/<slug>/`.
 
 ### ADRs (Architecture Decision Records)
 
@@ -310,7 +338,7 @@ At any point during a change, you can capture a decision:
 >
 > **AI**: *Records ADR with context, decision, rationale, and rejected alternatives*
 
-ADRs are saved both in the change directory and in persistent memory — they survive archival.
+ADRs are stored in `docs/adrs/` with sequential `NNN-slug.md` naming. They are also saved to persistent memory — they survive archival and are searchable across sessions.
 
 ### Wave Assignments
 
@@ -340,7 +368,7 @@ The AI generates wave assignments automatically when the dependency graph has pa
 
 ## Workflow 3: Ad-Hoc Sessions (No Pipeline)
 
-Not every task needs a formal pipeline. Sometimes you're debugging, exploring, or doing a quick task. The standalone tools work without `sdd.json`, without an active change, and without any ceremony.
+Not every task needs a formal pipeline. Sometimes you're debugging, exploring, or doing a quick task. The standalone tools work without `hoofy.json`, without an active change, and without any ceremony.
 
 ### Context Suggestion — "What should I read first?"
 
@@ -351,7 +379,7 @@ Before starting ad-hoc work, ask the AI to suggest relevant context:
 > **AI**: *Calls `sdd_suggest_context(task_description: "optimize search query slow large datasets")`*
 
 The tool scans:
-- **Existing specs** — requirements, business rules, design docs in `sdd/`
+- **Existing specs** — requirements, business rules, design docs in `docs/`
 - **Completed changes** — past changes that touched related areas
 - **Memory observations** — past decisions, discoveries, bugs about search/performance
 - **Convention files** — `CLAUDE.md`, `AGENTS.md`, `CONTRIBUTING.md`
@@ -374,13 +402,29 @@ The tool parses:
 
 Returns a checklist: "Verify FR-012 is still satisfied. Check that BRC-003 constraint on max results is respected. Confirm ADR about SQLite FTS5 is followed."
 
+### Spec-vs-Code Audit — "Are my specs still accurate?"
+
+Over time, specs drift from reality. `sdd_audit` scans your specs against actual source code:
+
+> **You**: "Are our specs still matching the code?"
+
+> **AI**: *Calls `sdd_audit` — scans `docs/` specs and compares against source files*
+
+The tool produces a structured report:
+- **Missing implementations** — specs that exist but have no corresponding code
+- **Stale specs** — code that has changed but specs haven't been updated
+- **Inconsistencies** — contradictions between spec and implementation
+
+Read-only — it never modifies files. The AI analyzes the report and recommends actions.
+
 ### When to use standalone vs. pipeline
 
 | Situation | Use... |
 |---|---|
-| Quick fix, clear what to do | `sdd_suggest_context` → fix → `sdd_review` |
-| Bug investigation, not sure of scope | `sdd_suggest_context` → investigate → maybe `sdd_change` if bigger |
+| Quick fix, clear what to do | `sdd_suggest_context` -> fix -> `sdd_review` |
+| Bug investigation, not sure of scope | `sdd_suggest_context` -> investigate -> maybe `sdd_change` if bigger |
 | Post-implementation sanity check | `sdd_review` |
+| Spec drift detection | `sdd_audit` |
 | Non-trivial change (new feature, refactor) | `sdd_change` (formal pipeline) |
 
 The standalone tools are the "fast path" — they give you spec awareness without pipeline overhead.
@@ -453,7 +497,7 @@ The AI creates relations automatically when it recognizes connections between ob
 
 ```
 mem_build_context(observation_id: 42, max_depth: 2)
-→ Returns the observation, its direct relations, and their relations
+-> Returns the observation, its direct relations, and their relations
 ```
 
 ---
@@ -464,21 +508,21 @@ The change pipeline selects stages automatically. Here's every combination:
 
 | Type | Small | Medium | Large |
 |---|---|---|---|
-| **Fix** | context-check → describe → tasks → verify | context-check → describe → spec → tasks → verify | context-check → describe → spec → design → tasks → verify |
-| **Feature** | context-check → describe → tasks → verify | context-check → propose → spec → tasks → verify | context-check → propose → spec → clarify → design → tasks → verify |
-| **Refactor** | context-check → scope → tasks → verify | context-check → scope → design → tasks → verify | context-check → scope → spec → design → tasks → verify |
-| **Enhancement** | context-check → describe → tasks → verify | context-check → propose → spec → tasks → verify | context-check → propose → spec → clarify → design → tasks → verify |
+| **Fix** | describe -> context-check -> tasks -> verify | describe -> context-check -> spec -> tasks -> verify | describe -> context-check -> spec -> design -> tasks -> verify |
+| **Feature** | describe -> context-check -> tasks -> verify | charter -> context-check -> spec -> tasks -> verify | charter -> context-check -> spec -> clarify -> design -> tasks -> verify |
+| **Refactor** | scope -> context-check -> tasks -> verify | scope -> context-check -> design -> tasks -> verify | scope -> context-check -> spec -> design -> tasks -> verify |
+| **Enhancement** | describe -> context-check -> tasks -> verify | charter -> context-check -> spec -> tasks -> verify | charter -> context-check -> spec -> clarify -> design -> tasks -> verify |
 
-**12 flows, all deterministic.** Every flow starts with context-check — the AI scans for conflicts before proceeding. You just say what you want to do and how big it is.
+**12 flows, all deterministic.** Every flow includes context-check — the AI scans for conflicts before proceeding. You just say what you want to do and how big it is.
 
 ### Stage Descriptions
 
 | Stage | Purpose | Used by |
 |---|---|---|
-| `context-check` | Scans existing specs, completed changes, memory, and convention files for conflicts | Every change (mandatory first stage) |
-| `describe` | Quick description of the change | Fix, Feature (S), Enhancement (S) |
+| `context-check` | Scans existing specs, completed changes, memory, and convention files for conflicts | Every change (mandatory) |
+| `describe` | Quick description of the change | Fix (all sizes), Feature (S), Enhancement (S) |
 | `scope` | What changes and what stays the same | Refactor only |
-| `propose` | Full proposal with problem/solution/scope | Feature (M/L), Enhancement (M/L) |
+| `charter` | Full charter with problem/domain/vision/boundaries | Feature (M/L), Enhancement (M/L) |
 | `spec` | Formal requirements (MoSCoW) | Medium and Large changes |
 | `clarify` | Clarity Gate — resolve ambiguities | Large Feature and Enhancement only |
 | `design` | Technical architecture | Large changes + Medium Refactor |
