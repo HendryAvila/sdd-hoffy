@@ -13,16 +13,16 @@ import (
 
 // --- Test helpers for change tools ---
 
-// setupChangeProject creates a temp dir with an sdd/ directory and
+// setupChangeProject creates a temp dir with a docs/ directory and
 // changes cwd to it. Returns the temp dir and a cleanup function.
-// Does NOT require sdd.json — change pipeline is independent.
+// Does NOT require hoofy.json — change pipeline is independent.
 func setupChangeProject(t *testing.T) (string, func()) {
 	t.Helper()
 	tmpDir := t.TempDir()
 
-	// Create minimal sdd/ directory.
-	if err := os.MkdirAll(filepath.Join(tmpDir, "sdd"), 0o755); err != nil {
-		t.Fatalf("setup: mkdir sdd: %v", err)
+	// Create minimal docs/ directory.
+	if err := os.MkdirAll(filepath.Join(tmpDir, "docs"), 0o755); err != nil {
+		t.Fatalf("setup: mkdir docs: %v", err)
 	}
 
 	origDir, err := os.Getwd()
@@ -46,11 +46,11 @@ func setupChangeProjectWithArtifacts(t *testing.T) (string, func()) {
 	return tmpDir, cleanup
 }
 
-// addDummyArtifact creates a minimal requirements.md in the sdd/ directory
+// addDummyArtifact creates a minimal requirements.md in the docs/ directory
 // so that CheckSDDArtifacts returns true (artifact guard passes).
 func addDummyArtifact(t *testing.T, projectRoot string) {
 	t.Helper()
-	path := filepath.Join(projectRoot, "sdd", "requirements.md")
+	path := filepath.Join(projectRoot, "docs", "requirements.md")
 	if err := os.WriteFile(path, []byte("# Requirements\n\nDummy artifact for testing.\n"), 0o644); err != nil {
 		t.Fatalf("setup: write dummy artifact: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestChangeTool_Handle_CreatesFiles(t *testing.T) {
 	}
 
 	// Verify directory and change.json created.
-	changeDir := filepath.Join(tmpDir, "sdd", "changes", "add-user-auth")
+	changeDir := filepath.Join(tmpDir, "docs", "changes", "add-user-auth")
 	if _, err := os.Stat(changeDir); os.IsNotExist(err) {
 		t.Error("change directory should be created")
 	}

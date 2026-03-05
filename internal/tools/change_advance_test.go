@@ -54,7 +54,7 @@ func TestChangeAdvanceTool_Handle_AdvancesStage(t *testing.T) {
 	}
 
 	// Verify the file was written.
-	descPath := filepath.Join(tmpDir, "sdd", "changes", "fix-empty-query", "describe.md")
+	descPath := filepath.Join(tmpDir, "docs", "changes", "fix-empty-query", "describe.md")
 	data, err := os.ReadFile(descPath)
 	if err != nil {
 		t.Fatalf("describe.md should exist: %v", err)
@@ -252,7 +252,7 @@ func TestChangeAdvanceTool_Handle_WritesCorrectFilename(t *testing.T) {
 		t.Fatalf("Handle failed: %v", err)
 	}
 
-	scopePath := filepath.Join(tmpDir, "sdd", "changes", "rename-vars", "scope.md")
+	scopePath := filepath.Join(tmpDir, "docs", "changes", "rename-vars", "scope.md")
 	if _, err := os.Stat(scopePath); os.IsNotExist(err) {
 		t.Error("scope.md should be created for refactor/small first stage")
 	}
@@ -292,11 +292,11 @@ func TestChangeAdvanceTool_Handle_ProgressMarkers(t *testing.T) {
 	store := changes.NewFileStore()
 	tool := NewChangeAdvanceTool(store)
 
-	// feature/medium: propose → context-check → spec → tasks → verify
+	// feature/medium: charter → context-check → spec → tasks → verify
 	// Advance first stage.
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
-		"content": "# Proposal\n\nNew feature.",
+		"content": "# Charter\n\nNew feature.",
 	}
 
 	result, err := tool.Handle(context.Background(), req)
@@ -305,7 +305,7 @@ func TestChangeAdvanceTool_Handle_ProgressMarkers(t *testing.T) {
 	}
 
 	text := getResultText(result)
-	// After completing propose, should show ✅ for propose and 🔄 for spec.
+	// After completing charter, should show ✅ for charter and 🔄 for spec.
 	if !strings.Contains(text, "✅") {
 		t.Error("should show ✅ marker for completed stage")
 	}
@@ -359,9 +359,9 @@ func TestChangeAdvanceTool_Handle_LargeFlowFullCycle(t *testing.T) {
 	store := changes.NewFileStore()
 	tool := NewChangeAdvanceTool(store)
 
-	// feature/large: propose → context-check → spec → clarify → design → tasks → verify
+	// feature/large: charter → context-check → spec → clarify → design → tasks → verify
 	contents := []string{
-		"# Propose\n\nProposal.",
+		"# Charter\n\nCharter content.",
 		"# Context Check\n\nNo conflicts.",
 		"# Spec\n\nSpecification.",
 		"# Clarify\n\nClarifications.",

@@ -163,9 +163,9 @@ func TestIntegration_FeatureLargeWithADRs(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 
-	// feature/large: propose → context-check → spec → clarify → design → tasks → verify
+	// feature/large: charter → context-check → spec → clarify → design → tasks → verify
 	stageContents := []string{
-		"# Proposal\n\nAdd JWT-based user authentication with email/password login.",
+		"# Charter\n\nAdd JWT-based user authentication with email/password login.",
 		"# Context Check\n\nNo conflicting specs found. No prior auth changes detected.",
 		"# Specification\n\n## FR-001: User Registration\nUsers can register with email and password.",
 		"# Clarifications\n\nQ: OAuth support?\nA: Not in v1, only email/password.",
@@ -226,10 +226,10 @@ func TestIntegration_FeatureLargeWithADRs(t *testing.T) {
 		t.Fatalf("ADRs count = %d, want 1", len(change.ADRs))
 	}
 
-	// Verify ADR file exists.
-	adrPath := filepath.Join(tmpDir, "sdd", "changes", "add-user-authentication", "adrs", "ADR-001.md")
+	// Verify ADR file exists in unified docs/adrs/ directory.
+	adrPath := filepath.Join(tmpDir, "docs", "adrs", "001-jwt-over-session-cookies.md")
 	if _, err := os.Stat(adrPath); os.IsNotExist(err) {
-		t.Error("ADR-001.md should exist")
+		t.Error("ADR file should exist at docs/adrs/001-jwt-over-session-cookies.md")
 	}
 
 	// Verify status shows ADRs.
@@ -248,11 +248,11 @@ func TestIntegration_FeatureLargeWithADRs(t *testing.T) {
 
 	// Verify all 7 stage artifacts exist.
 	expectedFiles := []string{
-		"propose.md", "context-check.md", "spec.md", "clarify.md",
+		"charter.md", "context-check.md", "spec.md", "clarify.md",
 		"design.md", "tasks.md", "verify.md",
 	}
 	for _, f := range expectedFiles {
-		path := filepath.Join(tmpDir, "sdd", "changes", "add-user-authentication", f)
+		path := filepath.Join(tmpDir, "docs", "changes", "add-user-authentication", f)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			t.Errorf("%s should exist", f)
 		}
@@ -348,11 +348,11 @@ func TestIntegration_RefactorMediumFlow(t *testing.T) {
 	}
 
 	// Verify correct files: scope.md (not describe.md).
-	scopePath := filepath.Join(tmpDir, "sdd", "changes", "extract-auth-module", "scope.md")
+	scopePath := filepath.Join(tmpDir, "docs", "changes", "extract-auth-module", "scope.md")
 	if _, err := os.Stat(scopePath); os.IsNotExist(err) {
 		t.Error("scope.md should exist for refactor flow")
 	}
-	describePath := filepath.Join(tmpDir, "sdd", "changes", "extract-auth-module", "describe.md")
+	describePath := filepath.Join(tmpDir, "docs", "changes", "extract-auth-module", "describe.md")
 	if _, err := os.Stat(describePath); !os.IsNotExist(err) {
 		t.Error("describe.md should NOT exist for refactor flow")
 	}
@@ -384,11 +384,11 @@ func TestIntegration_StandaloneADR(t *testing.T) {
 	}
 
 	text := getResultText(result)
-	if !strings.Contains(text, "standalone") {
-		t.Error("should indicate standalone ADR")
+	if !strings.Contains(text, "ADR Captured") {
+		t.Error("should contain 'ADR Captured'")
 	}
-	if !strings.Contains(text, "memory only") {
-		t.Error("should mention memory-only storage")
+	if !strings.Contains(text, "docs/adrs/") {
+		t.Error("should show docs/adrs/ path for standalone ADR")
 	}
 }
 
@@ -438,12 +438,16 @@ func TestIntegration_MultipleADRsDuringChange(t *testing.T) {
 		t.Errorf("ADR IDs = %v, want [ADR-001, ADR-002, ADR-003]", change.ADRs)
 	}
 
-	// Verify files exist.
-	for i := 1; i <= 3; i++ {
-		adrPath := filepath.Join(tmpDir, "sdd", "changes", "multi-adr-test", "adrs",
-			"ADR-00"+string(rune('0'+i))+".md")
+	// Verify files exist in unified docs/adrs/ directory.
+	expectedADRFiles := []string{
+		"001-decision-1.md",
+		"002-decision-2.md",
+		"003-decision-3.md",
+	}
+	for _, f := range expectedADRFiles {
+		adrPath := filepath.Join(tmpDir, "docs", "adrs", f)
 		if _, err := os.Stat(adrPath); os.IsNotExist(err) {
-			t.Errorf("ADR-00%d.md should exist", i)
+			t.Errorf("%s should exist in docs/adrs/", f)
 		}
 	}
 }
@@ -562,7 +566,7 @@ func TestIntegration_ContextCheckToolInFlow(t *testing.T) {
 
 	// Create SDD artifacts that context-check will scan.
 	reqContent := "# Requirements\n\n- **FR-001**: Users can register with email and password\n- **FR-002**: Users can log in and receive a JWT token\n"
-	if err := os.WriteFile(filepath.Join(tmpDir, "sdd", "requirements.md"), []byte(reqContent), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(tmpDir, "docs", "requirements.md"), []byte(reqContent), 0o644); err != nil {
 		t.Fatalf("write requirements: %v", err)
 	}
 
@@ -655,7 +659,7 @@ func TestIntegration_ContextCheckToolInFlow(t *testing.T) {
 	}
 
 	// Verify the context-check artifact was written.
-	checkPath := filepath.Join(tmpDir, "sdd", "changes", "add-password-reset-via-email-token", "context-check.md")
+	checkPath := filepath.Join(tmpDir, "docs", "changes", "add-password-reset-via-email-token", "context-check.md")
 	if _, err := os.Stat(checkPath); os.IsNotExist(err) {
 		t.Error("context-check.md artifact should exist")
 	}

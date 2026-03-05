@@ -13,14 +13,14 @@ import (
 
 // --- BootstrapTool tests ---
 
-// setupBootstrapProject creates a temp dir with an sdd/ directory,
+// setupBootstrapProject creates a temp dir with a docs/ directory,
 // changes cwd to it. Returns the root and cleanup.
 func setupBootstrapProject(t *testing.T) (string, func()) {
 	t.Helper()
 	dir := t.TempDir()
 
-	if err := os.MkdirAll(filepath.Join(dir, "sdd"), 0o755); err != nil {
-		t.Fatalf("setup: mkdir sdd: %v", err)
+	if err := os.MkdirAll(filepath.Join(dir, "docs"), 0o755); err != nil {
+		t.Fatalf("setup: mkdir docs: %v", err)
 	}
 
 	origDir, err := os.Getwd()
@@ -95,14 +95,14 @@ func TestBootstrapTool_Handle_WriteAllThreeArtifacts(t *testing.T) {
 
 	// Verify files exist on disk.
 	for _, name := range []string{"requirements.md", "business-rules.md", "design.md"} {
-		path := filepath.Join(root, "sdd", name)
+		path := filepath.Join(root, "docs", name)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			t.Errorf("expected %s to exist on disk", name)
 		}
 	}
 
 	// Verify auto-generated header in files.
-	data, err := os.ReadFile(filepath.Join(root, "sdd", "requirements.md"))
+	data, err := os.ReadFile(filepath.Join(root, "docs", "requirements.md"))
 	if err != nil {
 		t.Fatalf("read requirements: %v", err)
 	}
@@ -116,8 +116,8 @@ func TestBootstrapTool_Handle_WriteOnlyMissing(t *testing.T) {
 	defer cleanup()
 
 	// Pre-create requirements.md and design.md.
-	writeTestFile(t, root, "sdd/requirements.md", "# Existing Requirements\n\nAlready here.\n")
-	writeTestFile(t, root, "sdd/design.md", "# Existing Design\n\nAlready here.\n")
+	writeTestFile(t, root, "docs/requirements.md", "# Existing Requirements\n\nAlready here.\n")
+	writeTestFile(t, root, "docs/design.md", "# Existing Design\n\nAlready here.\n")
 
 	renderer, _ := templates.NewRenderer()
 	tool := NewBootstrapTool(renderer)
@@ -157,7 +157,7 @@ func TestBootstrapTool_Handle_WriteOnlyMissing(t *testing.T) {
 	}
 
 	// Verify requirements.md was NOT overwritten.
-	data, err := os.ReadFile(filepath.Join(root, "sdd", "requirements.md"))
+	data, err := os.ReadFile(filepath.Join(root, "docs", "requirements.md"))
 	if err != nil {
 		t.Fatalf("read requirements: %v", err)
 	}
@@ -169,7 +169,7 @@ func TestBootstrapTool_Handle_WriteOnlyMissing(t *testing.T) {
 	}
 
 	// Verify business-rules.md was created.
-	brData, err := os.ReadFile(filepath.Join(root, "sdd", "business-rules.md"))
+	brData, err := os.ReadFile(filepath.Join(root, "docs", "business-rules.md"))
 	if err != nil {
 		t.Fatalf("read business-rules: %v", err)
 	}
@@ -183,9 +183,9 @@ func TestBootstrapTool_Handle_AllExist(t *testing.T) {
 	defer cleanup()
 
 	// Pre-create all 3 artifacts.
-	writeTestFile(t, root, "sdd/requirements.md", "# Requirements\nExisting\n")
-	writeTestFile(t, root, "sdd/business-rules.md", "# Business Rules\nExisting\n")
-	writeTestFile(t, root, "sdd/design.md", "# Design\nExisting\n")
+	writeTestFile(t, root, "docs/requirements.md", "# Requirements\nExisting\n")
+	writeTestFile(t, root, "docs/business-rules.md", "# Business Rules\nExisting\n")
+	writeTestFile(t, root, "docs/design.md", "# Design\nExisting\n")
 
 	renderer, _ := templates.NewRenderer()
 	tool := NewBootstrapTool(renderer)
@@ -274,12 +274,12 @@ func TestBootstrapTool_Handle_RequirementsOnly(t *testing.T) {
 	}
 
 	// Verify file exists.
-	if _, err := os.Stat(filepath.Join(root, "sdd", "requirements.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(root, "docs", "requirements.md")); os.IsNotExist(err) {
 		t.Error("requirements.md should exist on disk")
 	}
 
 	// Verify auto-generated header.
-	data, err := os.ReadFile(filepath.Join(root, "sdd", "requirements.md"))
+	data, err := os.ReadFile(filepath.Join(root, "docs", "requirements.md"))
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -312,7 +312,7 @@ func TestBootstrapTool_Handle_CustomProjectName(t *testing.T) {
 	}
 
 	// Verify the project name is used in the artifact.
-	data, err := os.ReadFile(filepath.Join(root, "sdd", "business-rules.md"))
+	data, err := os.ReadFile(filepath.Join(root, "docs", "business-rules.md"))
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -347,7 +347,7 @@ func TestBootstrapTool_Handle_DefaultProjectName(t *testing.T) {
 	}
 
 	// Verify the directory name is used in the artifact.
-	data, err := os.ReadFile(filepath.Join(root, "sdd", "design.md"))
+	data, err := os.ReadFile(filepath.Join(root, "docs", "design.md"))
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -383,11 +383,11 @@ func TestBootstrapTool_Handle_CreatesSddDir(t *testing.T) {
 		t.Fatalf("expected success, got error: %s", getResultText(result))
 	}
 
-	// sdd/ directory should have been created.
-	if _, err := os.Stat(filepath.Join(dir, "sdd")); os.IsNotExist(err) {
-		t.Error("sdd/ directory should have been created")
+	// docs/ directory should have been created.
+	if _, err := os.Stat(filepath.Join(dir, "docs")); os.IsNotExist(err) {
+		t.Error("docs/ directory should have been created")
 	}
-	if _, err := os.Stat(filepath.Join(dir, "sdd", "business-rules.md")); os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(dir, "docs", "business-rules.md")); os.IsNotExist(err) {
 		t.Error("business-rules.md should exist")
 	}
 }

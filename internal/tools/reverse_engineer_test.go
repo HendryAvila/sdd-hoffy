@@ -882,12 +882,12 @@ func TestReverseEngineerTool_Handle_ExistingArtifacts(t *testing.T) {
 	root, cleanup := setupHandlerProject(t, setupGoProject)
 	defer cleanup()
 
-	// Create sdd/ with a requirements file.
-	sddDir := filepath.Join(root, "sdd")
-	if err := os.MkdirAll(sddDir, 0o755); err != nil {
-		t.Fatalf("mkdir sdd: %v", err)
+	// Create docs/ with a requirements file.
+	docsDir := filepath.Join(root, "docs")
+	if err := os.MkdirAll(docsDir, 0o755); err != nil {
+		t.Fatalf("mkdir docs: %v", err)
 	}
-	writeTestFile(t, root, "sdd/requirements.md", "# Requirements\n\n- FR-001: Something\n")
+	writeTestFile(t, root, "docs/requirements.md", "# Requirements\n\n- FR-001: Something\n")
 
 	tool := NewReverseEngineerTool()
 	req := mcp.CallToolRequest{}
@@ -914,13 +914,13 @@ func TestReverseEngineerTool_Handle_AllArtifactsExist(t *testing.T) {
 	root, cleanup := setupHandlerProject(t, setupGoProject)
 	defer cleanup()
 
-	sddDir := filepath.Join(root, "sdd")
-	if err := os.MkdirAll(sddDir, 0o755); err != nil {
-		t.Fatalf("mkdir sdd: %v", err)
+	docsDir := filepath.Join(root, "docs")
+	if err := os.MkdirAll(docsDir, 0o755); err != nil {
+		t.Fatalf("mkdir docs: %v", err)
 	}
-	writeTestFile(t, root, "sdd/requirements.md", "# Requirements\n")
-	writeTestFile(t, root, "sdd/business-rules.md", "# Business Rules\n")
-	writeTestFile(t, root, "sdd/design.md", "# Design\n")
+	writeTestFile(t, root, "docs/requirements.md", "# Requirements\n")
+	writeTestFile(t, root, "docs/business-rules.md", "# Business Rules\n")
+	writeTestFile(t, root, "docs/design.md", "# Design\n")
 
 	tool := NewReverseEngineerTool()
 	req := mcp.CallToolRequest{}

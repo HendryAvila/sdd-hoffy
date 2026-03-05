@@ -16,21 +16,21 @@ import (
 
 // --- Test helpers for context-check ---
 
-// setupContextCheckProject creates a temp dir with sdd/sdd.json (minimal)
-// and changes cwd to it. The context-check tool uses findProjectRoot()
-// which walks up looking for sdd/sdd.json.
+// setupContextCheckProject creates a temp dir with docs/hoofy.json (for findProjectRoot)
+// and docs/ artifacts. The context-check tool uses findProjectRoot()
+// which walks up looking for docs/hoofy.json, and scans artifacts from docs/.
 func setupContextCheckProject(t *testing.T) (string, func()) {
 	t.Helper()
 	tmpDir := t.TempDir()
 
-	// Create sdd/ directory with a minimal sdd.json.
-	sddDir := filepath.Join(tmpDir, "sdd")
-	if err := os.MkdirAll(sddDir, 0o755); err != nil {
-		t.Fatalf("setup: mkdir sdd: %v", err)
+	// Create docs/ directory with a minimal hoofy.json (for findProjectRoot).
+	docsDir := filepath.Join(tmpDir, "docs")
+	if err := os.MkdirAll(docsDir, 0o755); err != nil {
+		t.Fatalf("setup: mkdir docs: %v", err)
 	}
-	sddJSON := `{"name":"test","description":"test project","mode":"guided"}`
-	if err := os.WriteFile(filepath.Join(sddDir, "sdd.json"), []byte(sddJSON), 0o644); err != nil {
-		t.Fatalf("setup: write sdd.json: %v", err)
+	hoofyJSON := `{"name":"test","description":"test project","mode":"guided"}`
+	if err := os.WriteFile(filepath.Join(docsDir, "hoofy.json"), []byte(hoofyJSON), 0o644); err != nil {
+		t.Fatalf("setup: write hoofy.json: %v", err)
 	}
 
 	origDir, err := os.Getwd()
@@ -45,10 +45,10 @@ func setupContextCheckProject(t *testing.T) (string, func()) {
 	return tmpDir, cleanup
 }
 
-// writeArtifact writes a file in the sdd/ directory.
+// writeArtifact writes a file in the docs/ directory.
 func writeArtifact(t *testing.T, projectRoot, filename, content string) {
 	t.Helper()
-	path := filepath.Join(projectRoot, "sdd", filename)
+	path := filepath.Join(projectRoot, "docs", filename)
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write artifact %s: %v", filename, err)
 	}
@@ -58,7 +58,7 @@ func writeArtifact(t *testing.T, projectRoot, filename, content string) {
 func createCompletedChange(t *testing.T, projectRoot string, id string, ct changes.ChangeType, cs changes.ChangeSize, desc string) {
 	t.Helper()
 
-	changeDir := filepath.Join(projectRoot, "sdd", "changes", id, "adrs")
+	changeDir := filepath.Join(projectRoot, "docs", "changes", id, "adrs")
 	if err := os.MkdirAll(changeDir, 0o755); err != nil {
 		t.Fatalf("create change dir: %v", err)
 	}
@@ -81,7 +81,7 @@ func createCompletedChange(t *testing.T, projectRoot string, id string, ct chang
 		t.Fatalf("marshal change: %v", err)
 	}
 
-	configPath := filepath.Join(projectRoot, "sdd", "changes", id, "change.json")
+	configPath := filepath.Join(projectRoot, "docs", "changes", id, "change.json")
 	if err := os.WriteFile(configPath, data, 0o644); err != nil {
 		t.Fatalf("write change.json: %v", err)
 	}
@@ -166,7 +166,7 @@ func TestContextCheckTool_Handle_WithArtifacts(t *testing.T) {
 	defer cleanup()
 
 	// Write SDD artifacts.
-	writeArtifact(t, tmpDir, "proposal.md", "# Proposal\n\nBuild an authentication system.")
+	writeArtifact(t, tmpDir, "charter.md", "# Charter\n\nBuild an authentication system.")
 	writeArtifact(t, tmpDir, "requirements.md", "# Requirements\n\n- FR-001: User login\n- FR-002: Password reset")
 	writeArtifact(t, tmpDir, "design.md", "# Design\n\nJWT-based auth with refresh tokens.")
 
@@ -193,8 +193,8 @@ func TestContextCheckTool_Handle_WithArtifacts(t *testing.T) {
 	}
 
 	// Should list found artifacts.
-	if !strings.Contains(text, "proposal.md") {
-		t.Error("result should list proposal.md artifact")
+	if !strings.Contains(text, "charter.md") {
+		t.Error("result should list charter.md artifact")
 	}
 	if !strings.Contains(text, "requirements.md") {
 		t.Error("result should list requirements.md artifact")
@@ -208,7 +208,7 @@ func TestContextCheckTool_Handle_WithArtifacts(t *testing.T) {
 		t.Error("result should contain Artifact Excerpts section")
 	}
 	if !strings.Contains(text, "authentication system") {
-		t.Error("artifact excerpts should contain proposal content")
+		t.Error("artifact excerpts should contain charter content")
 	}
 
 	// Convention files should be skipped when SDD artifacts exist.
@@ -578,7 +578,7 @@ func TestContextCheckTool_Handle_SummaryLevel(t *testing.T) {
 	defer cleanup()
 
 	// Write SDD artifacts.
-	writeArtifact(t, tmpDir, "proposal.md", "# Proposal\n\nBuild an authentication system with OAuth2 and JWT.")
+	writeArtifact(t, tmpDir, "charter.md", "# Charter\n\nBuild an authentication system with OAuth2 and JWT.")
 	writeArtifact(t, tmpDir, "requirements.md", "# Requirements\n\n- FR-001: User login\n- FR-002: Password reset")
 
 	cs := changes.NewFileStore()
@@ -613,7 +613,7 @@ func TestContextCheckTool_Handle_SummaryLevel(t *testing.T) {
 	text := getResultText(result)
 
 	// Summary should show artifact names and sizes but NOT excerpts
-	if !strings.Contains(text, "proposal.md") {
+	if !strings.Contains(text, "charter.md") {
 		t.Error("summary should list artifact names")
 	}
 	if strings.Contains(text, "## Artifact Excerpts") {
@@ -642,7 +642,7 @@ func TestContextCheckTool_Handle_FullLevel(t *testing.T) {
 	defer cleanup()
 
 	artifactContent := strings.Repeat("Full artifact content block. ", 30) // 870+ chars
-	writeArtifact(t, tmpDir, "proposal.md", "# Proposal\n\n"+artifactContent)
+	writeArtifact(t, tmpDir, "charter.md", "# Charter\n\n"+artifactContent)
 
 	cs := changes.NewFileStore()
 	tool := NewContextCheckTool(cs, nil)
@@ -684,7 +684,7 @@ func TestContextCheckTool_Handle_StandardLevel(t *testing.T) {
 	defer cleanup()
 
 	artifactContent := strings.Repeat("Standard artifact content block. ", 30) // 960+ chars
-	writeArtifact(t, tmpDir, "proposal.md", "# Proposal\n\n"+artifactContent)
+	writeArtifact(t, tmpDir, "charter.md", "# Charter\n\n"+artifactContent)
 
 	cs := changes.NewFileStore()
 	tool := NewContextCheckTool(cs, nil)

@@ -94,6 +94,16 @@ func getResultText(result *mcp.CallToolResult) string {
 	return ""
 }
 
+// mustRenderer creates a template renderer or fails the test.
+func mustRenderer(t *testing.T) *templates.EmbedRenderer {
+	t.Helper()
+	r, err := templates.NewRenderer()
+	if err != nil {
+		t.Fatalf("setup: new renderer: %v", err)
+	}
+	return r
+}
+
 // --- InitTool ---
 
 func TestInitTool_Handle_Success(t *testing.T) {
@@ -105,7 +115,7 @@ func TestInitTool_Handle_Success(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 
 	store := config.NewFileStore()
-	tool := NewInitTool(store)
+	tool := NewInitTool(store, mustRenderer(t))
 
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
@@ -137,9 +147,9 @@ func TestInitTool_Handle_Success(t *testing.T) {
 	}
 
 	// Verify sdd/history/ directory exists.
-	historyDir := filepath.Join(tmpDir, "sdd", "history")
+	historyDir := filepath.Join(tmpDir, "docs", "history")
 	if _, err := os.Stat(historyDir); os.IsNotExist(err) {
-		t.Error("sdd/history/ directory should exist after init")
+		t.Error("docs/history/ directory should exist after init")
 	}
 }
 
@@ -152,7 +162,7 @@ func TestInitTool_Handle_MissingName(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 
 	store := config.NewFileStore()
-	tool := NewInitTool(store)
+	tool := NewInitTool(store, mustRenderer(t))
 
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
@@ -177,7 +187,7 @@ func TestInitTool_Handle_MissingDescription(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 
 	store := config.NewFileStore()
-	tool := NewInitTool(store)
+	tool := NewInitTool(store, mustRenderer(t))
 
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
@@ -202,7 +212,7 @@ func TestInitTool_Handle_InvalidMode(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 
 	store := config.NewFileStore()
-	tool := NewInitTool(store)
+	tool := NewInitTool(store, mustRenderer(t))
 
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
@@ -225,7 +235,7 @@ func TestInitTool_Handle_AlreadyExists(t *testing.T) {
 	defer cleanup()
 
 	store := config.NewFileStore()
-	tool := NewInitTool(store)
+	tool := NewInitTool(store, mustRenderer(t))
 
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
@@ -258,7 +268,7 @@ func TestInitTool_Handle_ExpertMode(t *testing.T) {
 	defer func() { _ = os.Chdir(origDir) }()
 
 	store := config.NewFileStore()
-	tool := NewInitTool(store)
+	tool := NewInitTool(store, mustRenderer(t))
 
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
@@ -278,24 +288,199 @@ func TestInitTool_Handle_ExpertMode(t *testing.T) {
 	}
 }
 
-// --- ProposeTool ---
+func TestInitTool_Handle_CreatesAgentsFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
 
-func TestProposeTool_Handle_Success(t *testing.T) {
-	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StagePropose)
+	store := config.NewFileStore()
+	tool := NewInitTool(store, mustRenderer(t))
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"name":        "fresh-project",
+		"description": "A brand new project",
+	}
+
+	_, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	// When neither CLAUDE.md nor AGENTS.md exists, AGENTS.md should be created.
+	agentsPath := filepath.Join(tmpDir, "AGENTS.md")
+	data, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatalf("AGENTS.md should exist: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "## Hoofy SDD Project") {
+		t.Error("AGENTS.md should contain '## Hoofy SDD Project' marker")
+	}
+	if !strings.Contains(content, "fresh-project") {
+		t.Error("AGENTS.md should contain project name")
+	}
+	if !strings.Contains(content, "docs/") {
+		t.Error("AGENTS.md should reference docs/ directory")
+	}
+}
+
+func TestInitTool_Handle_AppendsToClaudeFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	// Pre-create CLAUDE.md with existing content.
+	claudePath := filepath.Join(tmpDir, "CLAUDE.md")
+	existingContent := "# My Project Rules\n\nExisting instructions here.\n"
+	if err := os.WriteFile(claudePath, []byte(existingContent), 0o644); err != nil {
+		t.Fatalf("create CLAUDE.md: %v", err)
+	}
+
+	store := config.NewFileStore()
+	tool := NewInitTool(store, mustRenderer(t))
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"name":        "claude-project",
+		"description": "Uses CLAUDE.md",
+	}
+
+	_, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	data, err := os.ReadFile(claudePath)
+	if err != nil {
+		t.Fatalf("read CLAUDE.md: %v", err)
+	}
+	content := string(data)
+
+	// Existing content should be preserved.
+	if !strings.Contains(content, "Existing instructions here") {
+		t.Error("CLAUDE.md should preserve existing content")
+	}
+	// Hoofy section should be appended.
+	if !strings.Contains(content, "## Hoofy SDD Project") {
+		t.Error("CLAUDE.md should have Hoofy section appended")
+	}
+	// AGENTS.md should NOT be created.
+	agentsPath := filepath.Join(tmpDir, "AGENTS.md")
+	if _, err := os.Stat(agentsPath); !os.IsNotExist(err) {
+		t.Error("AGENTS.md should NOT be created when CLAUDE.md exists")
+	}
+}
+
+func TestInitTool_Handle_AppendsToAgentsFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	// Pre-create AGENTS.md with existing content (no CLAUDE.md).
+	agentsPath := filepath.Join(tmpDir, "AGENTS.md")
+	existingContent := "# Agents Guide\n\nExisting agent instructions.\n"
+	if err := os.WriteFile(agentsPath, []byte(existingContent), 0o644); err != nil {
+		t.Fatalf("create AGENTS.md: %v", err)
+	}
+
+	store := config.NewFileStore()
+	tool := NewInitTool(store, mustRenderer(t))
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"name":        "agents-project",
+		"description": "Uses AGENTS.md",
+	}
+
+	_, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	data, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	content := string(data)
+
+	// Existing content should be preserved.
+	if !strings.Contains(content, "Existing agent instructions") {
+		t.Error("AGENTS.md should preserve existing content")
+	}
+	// Hoofy section should be appended.
+	if !strings.Contains(content, "## Hoofy SDD Project") {
+		t.Error("AGENTS.md should have Hoofy section appended")
+	}
+}
+
+func TestInitTool_Handle_AgentInstructions_Idempotent(t *testing.T) {
+	tmpDir := t.TempDir()
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	defer func() { _ = os.Chdir(origDir) }()
+
+	// Pre-create AGENTS.md with a Hoofy section already present.
+	agentsPath := filepath.Join(tmpDir, "AGENTS.md")
+	existingContent := "# Agents Guide\n\n## Hoofy SDD Project\n\nAlready here.\n"
+	if err := os.WriteFile(agentsPath, []byte(existingContent), 0o644); err != nil {
+		t.Fatalf("create AGENTS.md: %v", err)
+	}
+
+	store := config.NewFileStore()
+	tool := NewInitTool(store, mustRenderer(t))
+
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]interface{}{
+		"name":        "idempotent-project",
+		"description": "Tests idempotency",
+	}
+
+	_, err := tool.Handle(context.Background(), req)
+	if err != nil {
+		t.Fatalf("Handle failed: %v", err)
+	}
+
+	data, err := os.ReadFile(agentsPath)
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	content := string(data)
+
+	// Should NOT have duplicated the section.
+	count := strings.Count(content, "## Hoofy SDD Project")
+	if count != 1 {
+		t.Errorf("Hoofy section should appear exactly once, found %d times", count)
+	}
+}
+
+// --- CharterTool ---
+
+func TestCharterTool_Handle_Success(t *testing.T) {
+	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageCharter)
 	defer cleanup()
 
 	store := config.NewFileStore()
 	renderer, _ := templates.NewRenderer()
-	tool := NewProposeTool(store, renderer)
+	tool := NewCharterTool(store, renderer)
 
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
 		"problem_statement": "Freelancers waste 30+ minutes daily tracking hours across spreadsheets",
 		"target_users":      "- **Freelance designers** who need simple time tracking\n- **Small agency owners** who need team visibility",
 		"proposed_solution": "A web app where freelancers log hours per project and see weekly reports",
-		"out_of_scope":      "- Will NOT handle invoicing\n- Will NOT support offline mode",
 		"success_criteria":  "- Users can log time in under 10 seconds\n- 80% complete onboarding without help",
-		"open_questions":    "- Should we support mobile from day one?",
 	}
 
 	result, err := tool.Handle(context.Background(), req)
@@ -308,8 +493,8 @@ func TestProposeTool_Handle_Success(t *testing.T) {
 	}
 
 	text := getResultText(result)
-	if !strings.Contains(text, "Proposal Created") {
-		t.Error("result should contain 'Proposal Created'")
+	if !strings.Contains(text, "Charter Created") {
+		t.Error("result should contain 'Charter Created'")
 	}
 	if !strings.Contains(text, "Freelancers waste") {
 		t.Error("result should contain the problem statement content")
@@ -319,13 +504,13 @@ func TestProposeTool_Handle_Success(t *testing.T) {
 	}
 }
 
-func TestProposeTool_Handle_MissingRequiredFields(t *testing.T) {
-	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StagePropose)
+func TestCharterTool_Handle_MissingRequiredFields(t *testing.T) {
+	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageCharter)
 	defer cleanup()
 
 	store := config.NewFileStore()
 	renderer, _ := templates.NewRenderer()
-	tool := NewProposeTool(store, renderer)
+	tool := NewCharterTool(store, renderer)
 
 	tests := []struct {
 		name   string
@@ -334,27 +519,22 @@ func TestProposeTool_Handle_MissingRequiredFields(t *testing.T) {
 	}{
 		{
 			name:   "missing problem_statement",
-			args:   map[string]interface{}{"target_users": "devs", "proposed_solution": "app", "out_of_scope": "none", "success_criteria": "works"},
+			args:   map[string]interface{}{"target_users": "devs", "proposed_solution": "app", "success_criteria": "works"},
 			errMsg: "problem_statement",
 		},
 		{
 			name:   "missing target_users",
-			args:   map[string]interface{}{"problem_statement": "problem", "proposed_solution": "app", "out_of_scope": "none", "success_criteria": "works"},
+			args:   map[string]interface{}{"problem_statement": "problem", "proposed_solution": "app", "success_criteria": "works"},
 			errMsg: "target_users",
 		},
 		{
 			name:   "missing proposed_solution",
-			args:   map[string]interface{}{"problem_statement": "problem", "target_users": "devs", "out_of_scope": "none", "success_criteria": "works"},
+			args:   map[string]interface{}{"problem_statement": "problem", "target_users": "devs", "success_criteria": "works"},
 			errMsg: "proposed_solution",
 		},
 		{
-			name:   "missing out_of_scope",
-			args:   map[string]interface{}{"problem_statement": "problem", "target_users": "devs", "proposed_solution": "app", "success_criteria": "works"},
-			errMsg: "out_of_scope",
-		},
-		{
 			name:   "missing success_criteria",
-			args:   map[string]interface{}{"problem_statement": "problem", "target_users": "devs", "proposed_solution": "app", "out_of_scope": "none"},
+			args:   map[string]interface{}{"problem_statement": "problem", "target_users": "devs", "proposed_solution": "app"},
 			errMsg: "success_criteria",
 		},
 	}
@@ -379,20 +559,19 @@ func TestProposeTool_Handle_MissingRequiredFields(t *testing.T) {
 	}
 }
 
-func TestProposeTool_Handle_WrongStage(t *testing.T) {
+func TestCharterTool_Handle_WrongStage(t *testing.T) {
 	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageClarify)
 	defer cleanup()
 
 	store := config.NewFileStore()
 	renderer, _ := templates.NewRenderer()
-	tool := NewProposeTool(store, renderer)
+	tool := NewCharterTool(store, renderer)
 
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
 		"problem_statement": "problem",
 		"target_users":      "devs",
 		"proposed_solution": "app",
-		"out_of_scope":      "none",
 		"success_criteria":  "works",
 	}
 
@@ -409,20 +588,19 @@ func TestProposeTool_Handle_WrongStage(t *testing.T) {
 	}
 }
 
-func TestProposeTool_Handle_AdvancesPipeline(t *testing.T) {
-	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StagePropose)
+func TestCharterTool_Handle_AdvancesPipeline(t *testing.T) {
+	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageCharter)
 	defer cleanup()
 
 	store := config.NewFileStore()
 	renderer, _ := templates.NewRenderer()
-	tool := NewProposeTool(store, renderer)
+	tool := NewCharterTool(store, renderer)
 
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
 		"problem_statement": "Users need a chat app",
 		"target_users":      "Remote teams",
 		"proposed_solution": "Real-time messaging platform",
-		"out_of_scope":      "Video calls",
 		"success_criteria":  "Sub-second message delivery",
 	}
 
@@ -437,7 +615,7 @@ func TestProposeTool_Handle_AdvancesPipeline(t *testing.T) {
 		t.Fatalf("Load failed: %v", err)
 	}
 	if cfg.CurrentStage != config.StageSpecify {
-		t.Errorf("stage should be specify after propose, got: %s", cfg.CurrentStage)
+		t.Errorf("stage should be specify after charter, got: %s", cfg.CurrentStage)
 	}
 }
 
@@ -447,10 +625,10 @@ func TestSpecifyTool_Handle_Success(t *testing.T) {
 	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageSpecify)
 	defer cleanup()
 
-	// Write a proposal file (required by specify).
-	proposalPath := config.StagePath(tmpDir, config.StagePropose)
-	if err := writeStageFile(proposalPath, "# Test Proposal\n\nThis is a test proposal with some requirements."); err != nil {
-		t.Fatalf("write proposal: %v", err)
+	// Write a charter file (required by specify).
+	charterPath := config.StagePath(tmpDir, config.StageCharter)
+	if err := writeStageFile(charterPath, "# Test Charter\n\nThis is a test charter with some requirements."); err != nil {
+		t.Fatalf("write charter: %v", err)
 	}
 
 	store := config.NewFileStore()
@@ -489,9 +667,9 @@ func TestSpecifyTool_Handle_MissingRequiredFields(t *testing.T) {
 	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageSpecify)
 	defer cleanup()
 
-	proposalPath := config.StagePath(tmpDir, config.StagePropose)
-	if err := writeStageFile(proposalPath, "# Test Proposal\n\nSome content here."); err != nil {
-		t.Fatalf("write proposal: %v", err)
+	charterPath := config.StagePath(tmpDir, config.StageCharter)
+	if err := writeStageFile(charterPath, "# Test Charter\n\nSome content here."); err != nil {
+		t.Fatalf("write charter: %v", err)
 	}
 
 	store := config.NewFileStore()
@@ -560,7 +738,7 @@ func TestSpecifyTool_Handle_EmptyProposal(t *testing.T) {
 		t.Fatalf("Handle failed: %v", err)
 	}
 	if !isErrorResult(result) {
-		t.Error("should return error when proposal is empty")
+		t.Error("should return error when charter is empty")
 	}
 }
 
@@ -568,9 +746,9 @@ func TestSpecifyTool_Handle_AdvancesPipeline(t *testing.T) {
 	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageSpecify)
 	defer cleanup()
 
-	proposalPath := config.StagePath(tmpDir, config.StagePropose)
-	if err := writeStageFile(proposalPath, "# Test Proposal\n\nSome content here."); err != nil {
-		t.Fatalf("write proposal: %v", err)
+	charterPath := config.StagePath(tmpDir, config.StageCharter)
+	if err := writeStageFile(charterPath, "# Test Charter\n\nSome content here."); err != nil {
+		t.Fatalf("write charter: %v", err)
 	}
 
 	store := config.NewFileStore()
@@ -599,9 +777,9 @@ func TestSpecifyTool_Handle_OptionalFieldsDefault(t *testing.T) {
 	tmpDir, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageSpecify)
 	defer cleanup()
 
-	proposalPath := config.StagePath(tmpDir, config.StagePropose)
-	if err := writeStageFile(proposalPath, "# Test Proposal\n\nSome content here."); err != nil {
-		t.Fatalf("write proposal: %v", err)
+	charterPath := config.StagePath(tmpDir, config.StageCharter)
+	if err := writeStageFile(charterPath, "# Test Charter\n\nSome content here."); err != nil {
+		t.Fatalf("write charter: %v", err)
 	}
 
 	store := config.NewFileStore()
@@ -786,7 +964,7 @@ func TestContextTool_Handle_Overview(t *testing.T) {
 	if !strings.Contains(text, "test-project") {
 		t.Error("overview should contain project name")
 	}
-	if !strings.Contains(text, "Propose") || !strings.Contains(text, "Specify") {
+	if !strings.Contains(text, "Charter") || !strings.Contains(text, "Specify") {
 		t.Error("overview should list pipeline stages")
 	}
 }
@@ -795,10 +973,10 @@ func TestContextTool_Handle_SpecificStage(t *testing.T) {
 	tmpDir, cleanup := setupTestProject(t, config.ModeGuided)
 	defer cleanup()
 
-	// Write a proposal file.
-	proposalPath := config.StagePath(tmpDir, config.StagePropose)
-	if err := writeStageFile(proposalPath, "# My Proposal\n\nThis is the proposal content."); err != nil {
-		t.Fatalf("write proposal: %v", err)
+	// Write a charter file.
+	charterPath := config.StagePath(tmpDir, config.StageCharter)
+	if err := writeStageFile(charterPath, "# My Charter\n\nThis is the charter content."); err != nil {
+		t.Fatalf("write charter: %v", err)
 	}
 
 	store := config.NewFileStore()
@@ -806,7 +984,7 @@ func TestContextTool_Handle_SpecificStage(t *testing.T) {
 
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
-		"stage": "propose",
+		"stage": "charter",
 	}
 
 	result, err := tool.Handle(context.Background(), req)
@@ -815,8 +993,8 @@ func TestContextTool_Handle_SpecificStage(t *testing.T) {
 	}
 
 	text := getResultText(result)
-	if !strings.Contains(text, "My Proposal") {
-		t.Error("should return proposal content")
+	if !strings.Contains(text, "My Charter") {
+		t.Error("should return charter content")
 	}
 }
 
@@ -829,7 +1007,7 @@ func TestContextTool_Handle_EmptyStage(t *testing.T) {
 
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
-		"stage": "propose",
+		"stage": "charter",
 	}
 
 	result, err := tool.Handle(context.Background(), req)
@@ -899,8 +1077,8 @@ func TestContextTool_Handle_SummaryDetailLevel(t *testing.T) {
 	if !strings.Contains(text, "Initialize") {
 		t.Error("summary should list Initialize stage")
 	}
-	if !strings.Contains(text, "Propose") {
-		t.Error("summary should list Propose stage")
+	if !strings.Contains(text, "Charter") {
+		t.Error("summary should list Charter stage")
 	}
 	if !strings.Contains(text, "✅") {
 		t.Error("summary should have completed indicator for Init")
@@ -980,11 +1158,11 @@ func TestContextTool_Handle_FullDetailLevel(t *testing.T) {
 	tmpDir, cleanup := setupTestProject(t, config.ModeGuided)
 	defer cleanup()
 
-	// Write a proposal artifact so there's content to include.
-	proposalPath := config.StagePath(tmpDir, config.StagePropose)
-	proposalContent := "# My Proposal\n\nThis is a full proposal.\n\n## Problem\n\nThe problem statement."
-	if err := writeStageFile(proposalPath, proposalContent); err != nil {
-		t.Fatalf("write proposal: %v", err)
+	// Write a charter artifact so there's content to include.
+	charterPath := config.StagePath(tmpDir, config.StageCharter)
+	charterContent := "# My Charter\n\nThis is a full charter.\n\n## Problem\n\nThe problem statement."
+	if err := writeStageFile(charterPath, charterContent); err != nil {
+		t.Fatalf("write charter: %v", err)
 	}
 
 	store := config.NewFileStore()
@@ -1015,14 +1193,14 @@ func TestContextTool_Handle_FullDetailLevel(t *testing.T) {
 	}
 
 	// Full should include the inline artifact content.
-	if !strings.Contains(text, "Propose Content") {
-		t.Error("full should contain 'Propose Content' section header")
+	if !strings.Contains(text, "Charter Content") {
+		t.Error("full should contain 'Charter Content' section header")
 	}
-	if !strings.Contains(text, "My Proposal") {
-		t.Error("full should include actual proposal content")
+	if !strings.Contains(text, "My Charter") {
+		t.Error("full should include actual charter content")
 	}
 	if !strings.Contains(text, "The problem statement") {
-		t.Error("full should include proposal body text")
+		t.Error("full should include charter body text")
 	}
 }
 
@@ -1050,7 +1228,7 @@ func TestContextTool_Handle_FullDetailLevel_NoArtifacts(t *testing.T) {
 		t.Error("full with no artifacts should contain standard overview")
 	}
 	// Should NOT have any "Content" section headers since no artifacts exist.
-	if strings.Contains(text, "Propose Content") {
+	if strings.Contains(text, "Charter Content") {
 		t.Error("full with no artifacts should NOT have artifact content sections")
 	}
 }
@@ -1059,10 +1237,10 @@ func TestContextTool_Handle_DetailLevelIgnoredWithStage(t *testing.T) {
 	tmpDir, cleanup := setupTestProject(t, config.ModeGuided)
 	defer cleanup()
 
-	// Write a proposal artifact.
-	proposalPath := config.StagePath(tmpDir, config.StagePropose)
-	if err := writeStageFile(proposalPath, "# Specific Proposal\n\nJust this one."); err != nil {
-		t.Fatalf("write proposal: %v", err)
+	// Write a charter artifact.
+	charterPath := config.StagePath(tmpDir, config.StageCharter)
+	if err := writeStageFile(charterPath, "# Specific Charter\n\nJust this one."); err != nil {
+		t.Fatalf("write charter: %v", err)
 	}
 
 	store := config.NewFileStore()
@@ -1071,7 +1249,7 @@ func TestContextTool_Handle_DetailLevelIgnoredWithStage(t *testing.T) {
 	// Both stage and detail_level set — stage should take priority.
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]interface{}{
-		"stage":        "propose",
+		"stage":        "charter",
 		"detail_level": "summary",
 	}
 
@@ -1083,7 +1261,7 @@ func TestContextTool_Handle_DetailLevelIgnoredWithStage(t *testing.T) {
 	text := getResultText(result)
 
 	// Should return the stage content, NOT a summary overview.
-	if !strings.Contains(text, "Specific Proposal") {
+	if !strings.Contains(text, "Specific Charter") {
 		t.Error("when stage is set, detail_level should be ignored — should return stage content")
 	}
 	if strings.Contains(text, "guided") {
@@ -1109,7 +1287,7 @@ func TestContextTool_Handle_DefaultDetailLevel(t *testing.T) {
 
 	textWithout := getResultText(resultWithout)
 	// Summary mode shows stage names but NOT the full "Pipeline Progress" table.
-	if !strings.Contains(textWithout, "Propose") {
+	if !strings.Contains(textWithout, "Charter") {
 		t.Error("no detail_level should default to summary (with stage names)")
 	}
 	if strings.Contains(textWithout, "Pipeline Progress") {
@@ -1234,7 +1412,8 @@ func TestNextStepGuidance(t *testing.T) {
 		stage    config.Stage
 		contains string
 	}{
-		{config.StagePropose, "sdd_create_proposal"},
+		{config.StagePrinciples, "sdd_create_principles"},
+		{config.StageCharter, "sdd_create_charter"},
 		{config.StageSpecify, "sdd_generate_requirements"},
 		{config.StageClarify, "sdd_clarify"},
 		{config.StageDesign, "sdd_create_design"},
@@ -1776,11 +1955,12 @@ func setupValidateProject(t *testing.T) (string, func()) {
 
 	// Write all required artifacts.
 	artifacts := map[config.Stage]string{
-		config.StagePropose: "# Proposal\n\nA test proposal.",
-		config.StageSpecify: "# Requirements\n\n- FR-001: Users can sign up",
-		config.StageClarify: "# Clarifications\n\nAll clarified.",
-		config.StageDesign:  "# Design\n\nMonolith with Clean Architecture.",
-		config.StageTasks:   "# Tasks\n\n### TASK-001: Setup project",
+		config.StagePrinciples: "# Principles\n\nTest principles.",
+		config.StageCharter:    "# Charter\n\nA test charter.",
+		config.StageSpecify:    "# Requirements\n\n- FR-001: Users can sign up",
+		config.StageClarify:    "# Clarifications\n\nAll clarified.",
+		config.StageDesign:     "# Design\n\nMonolith with Clean Architecture.",
+		config.StageTasks:      "# Tasks\n\n### TASK-001: Setup project",
 	}
 
 	for stage, content := range artifacts {
@@ -2095,7 +2275,7 @@ func (s *spyObserver) OnStageComplete(projectName string, stage config.Stage, co
 
 func TestNotifyObserver_NilSafe(t *testing.T) {
 	// Must not panic with nil observer.
-	notifyObserver(nil, "test", config.StagePropose, "content")
+	notifyObserver(nil, "test", config.StageCharter, "content")
 }
 
 func TestNotifyObserver_CallsObserver(t *testing.T) {
@@ -2139,11 +2319,11 @@ func TestNormalizeProject(t *testing.T) {
 
 func TestCompactSummary_ShortContent(t *testing.T) {
 	content := "Short content"
-	result := compactSummary(config.StagePropose, content)
+	result := compactSummary(config.StageCharter, content)
 	if !strings.Contains(result, "Short content") {
 		t.Errorf("short content should be preserved fully, got: %s", result)
 	}
-	if !strings.Contains(result, "propose") {
+	if !strings.Contains(result, "charter") {
 		t.Errorf("should include stage name, got: %s", result)
 	}
 }
@@ -2181,10 +2361,10 @@ func TestMemoryBridge_OnStageComplete(t *testing.T) {
 	defer func() { _ = ms.Close() }()
 
 	bridge := NewMemoryBridge(ms)
-	bridge.OnStageComplete("Test Project", config.StagePropose, "# Proposal\n\nWe're building a thing.")
+	bridge.OnStageComplete("Test Project", config.StageCharter, "# Charter\n\nWe're building a thing.")
 
 	// Verify observation was saved by searching.
-	results, err := ms.Search("SDD propose", memory.SearchOptions{
+	results, err := ms.Search("SDD charter", memory.SearchOptions{
 		Project: "Test Project",
 		Limit:   10,
 	})
@@ -2194,13 +2374,13 @@ func TestMemoryBridge_OnStageComplete(t *testing.T) {
 	if len(results) == 0 {
 		t.Fatal("expected bridge to save an observation, got 0 results")
 	}
-	if !strings.Contains(results[0].Title, "SDD propose") {
-		t.Errorf("title = %q, want it to contain 'SDD propose'", results[0].Title)
+	if !strings.Contains(results[0].Title, "SDD charter") {
+		t.Errorf("title = %q, want it to contain 'SDD charter'", results[0].Title)
 	}
-	if !strings.Contains(results[0].Content, "Proposal") {
+	if !strings.Contains(results[0].Content, "Charter") {
 		t.Errorf("content should contain artifact text, got: %s", results[0].Content)
 	}
-	wantTopicKey := "sdd/test-project/propose"
+	wantTopicKey := "sdd/test-project/charter"
 	if results[0].TopicKey == nil || *results[0].TopicKey != wantTopicKey {
 		got := "<nil>"
 		if results[0].TopicKey != nil {
@@ -2245,10 +2425,10 @@ func TestMemoryBridge_TopicKeyUpsert(t *testing.T) {
 	}
 }
 
-func TestProposeTool_SetBridge(t *testing.T) {
+func TestCharterTool_SetBridge(t *testing.T) {
 	store := config.NewFileStore()
 	renderer, _ := templates.NewRenderer()
-	tool := NewProposeTool(store, renderer)
+	tool := NewCharterTool(store, renderer)
 	spy := &spyObserver{}
 
 	// SetBridge should not panic and should be callable.
@@ -2256,13 +2436,13 @@ func TestProposeTool_SetBridge(t *testing.T) {
 	tool.SetBridge(nil) // nil should also be safe
 }
 
-func TestProposeTool_Handle_NotifiesBridge(t *testing.T) {
-	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StagePropose)
+func TestCharterTool_Handle_NotifiesBridge(t *testing.T) {
+	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageCharter)
 	defer cleanup()
 
 	store := config.NewFileStore()
 	renderer, _ := templates.NewRenderer()
-	tool := NewProposeTool(store, renderer)
+	tool := NewCharterTool(store, renderer)
 	spy := &spyObserver{}
 	tool.SetBridge(spy)
 
@@ -2271,7 +2451,6 @@ func TestProposeTool_Handle_NotifiesBridge(t *testing.T) {
 		"problem_statement": "Users need help",
 		"target_users":      "- Developers",
 		"proposed_solution": "Build a tool",
-		"out_of_scope":      "- Not X",
 		"success_criteria":  "- It works",
 	}
 
@@ -2286,8 +2465,8 @@ func TestProposeTool_Handle_NotifiesBridge(t *testing.T) {
 	if len(spy.calls) != 1 {
 		t.Fatalf("expected 1 bridge call, got %d", len(spy.calls))
 	}
-	if spy.calls[0].stage != config.StagePropose {
-		t.Errorf("stage = %q, want propose", spy.calls[0].stage)
+	if spy.calls[0].stage != config.StageCharter {
+		t.Errorf("stage = %q, want charter", spy.calls[0].stage)
 	}
 	if spy.calls[0].projectName != "test-project" {
 		t.Errorf("projectName = %q, want test-project", spy.calls[0].projectName)
@@ -2327,13 +2506,13 @@ func TestValidateTool_Handle_NotifiesBridge(t *testing.T) {
 	}
 }
 
-func TestProposeTool_Handle_NilBridge_NoError(t *testing.T) {
-	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StagePropose)
+func TestCharterTool_Handle_NilBridge_NoError(t *testing.T) {
+	_, cleanup := setupTestProjectAtStage(t, config.ModeGuided, config.StageCharter)
 	defer cleanup()
 
 	store := config.NewFileStore()
 	renderer, _ := templates.NewRenderer()
-	tool := NewProposeTool(store, renderer)
+	tool := NewCharterTool(store, renderer)
 	// Do NOT set bridge — it should be nil and still work.
 
 	req := mcp.CallToolRequest{}
@@ -2341,7 +2520,6 @@ func TestProposeTool_Handle_NilBridge_NoError(t *testing.T) {
 		"problem_statement": "Users need help",
 		"target_users":      "- Developers",
 		"proposed_solution": "Build a tool",
-		"out_of_scope":      "- Not X",
 		"success_criteria":  "- It works",
 	}
 

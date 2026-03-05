@@ -173,7 +173,7 @@ func TestChangeStatusTool_Handle_WithArtifactSizes(t *testing.T) {
 	defer cleanup()
 
 	// Write a stage artifact so the status tool can show its size.
-	changeDir := filepath.Join(tmpDir, "sdd", "changes", "artifact-sizes")
+	changeDir := filepath.Join(tmpDir, "docs", "changes", "artifact-sizes")
 	descPath := filepath.Join(changeDir, "describe.md")
 	content := "# Description\n\nThis is a test description with enough content to verify byte count."
 	if err := os.WriteFile(descPath, []byte(content), 0o644); err != nil {
