@@ -13,10 +13,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/HendryAvila/Hoofy/internal/config"
 )
 
 // findProjectRoot walks up from the current working directory looking
-// for an existing sdd/ directory. If none is found, returns cwd.
+// for an existing docs/hoofy.json (or docs/specs/hoofy.json fallback).
+// If none is found, returns cwd.
 // This allows tools to work from any subdirectory of the project.
 func findProjectRoot() (string, error) {
 	dir, err := os.Getwd()
@@ -24,17 +27,22 @@ func findProjectRoot() (string, error) {
 		return "", fmt.Errorf("getting working directory: %w", err)
 	}
 
-	// Walk up looking for sdd/sdd.json
+	// Walk up looking for docs/hoofy.json or docs/specs/hoofy.json
 	current := dir
 	for {
-		candidate := filepath.Join(current, "sdd", "sdd.json")
-		if _, err := os.Stat(candidate); err == nil {
+		primary := filepath.Join(current, config.DocsDir, config.ConfigFile)
+		if _, err := os.Stat(primary); err == nil {
+			return current, nil
+		}
+
+		fallback := filepath.Join(current, config.DocsDir, config.DocsDirFallback, config.ConfigFile)
+		if _, err := os.Stat(fallback); err == nil {
 			return current, nil
 		}
 
 		parent := filepath.Dir(current)
 		if parent == current {
-			// Reached filesystem root, no SDD project found.
+			// Reached filesystem root, no Hoofy project found.
 			// Return original cwd — the caller decides what to do.
 			return dir, nil
 		}
