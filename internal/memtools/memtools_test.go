@@ -306,6 +306,92 @@ func TestSaveTool_Success(t *testing.T) {
 	}
 }
 
+// ─── SessionTool (unified) ───────────────────────────────────────────────────
+
+func TestSessionTool_StartSuccess(t *testing.T) {
+	store := newTestStore(t)
+	tool := NewSessionTool(store)
+
+	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
+		"action":    "start",
+		"id":        "sess-100",
+		"project":   "my-app",
+		"directory": "/tmp/work",
+	}))
+
+	mustNotError(t, r, err)
+	text := resultText(r)
+	if !strings.Contains(text, "started") {
+		t.Errorf("expected started response, got: %s", text)
+	}
+}
+
+func TestSessionTool_EndSuccess(t *testing.T) {
+	store := newTestStore(t)
+	if err := store.CreateSession("sess-101", "my-app", "/tmp/work"); err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	tool := NewSessionTool(store)
+
+	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
+		"action":  "end",
+		"id":      "sess-101",
+		"summary": "Completed tasks",
+	}))
+
+	mustNotError(t, r, err)
+	text := resultText(r)
+	if !strings.Contains(text, "completed") {
+		t.Errorf("expected completed response, got: %s", text)
+	}
+}
+
+func TestSessionTool_MissingAction(t *testing.T) {
+	store := newTestStore(t)
+	tool := NewSessionTool(store)
+
+	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
+		"id": "sess-102",
+	}))
+
+	mustBeToolError(t, r, err, "action")
+}
+
+func TestSessionTool_StartMissingProject(t *testing.T) {
+	store := newTestStore(t)
+	tool := NewSessionTool(store)
+
+	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
+		"action": "start",
+		"id":     "sess-103",
+	}))
+
+	mustBeToolError(t, r, err, "project")
+}
+
+func TestSessionTool_EndMissingID(t *testing.T) {
+	store := newTestStore(t)
+	tool := NewSessionTool(store)
+
+	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
+		"action": "end",
+	}))
+
+	mustBeToolError(t, r, err, "id")
+}
+
+func TestSessionTool_InvalidAction(t *testing.T) {
+	store := newTestStore(t)
+	tool := NewSessionTool(store)
+
+	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
+		"action": "pause",
+		"id":     "sess-104",
+	}))
+
+	mustBeToolError(t, r, err, "action")
+}
+
 func TestSaveTool_SuggestsTopicKey(t *testing.T) {
 	store := newTestStore(t)
 	seedManualSession(t, store)
@@ -366,32 +452,127 @@ func TestSaveTool_MissingContent(t *testing.T) {
 	mustBeToolError(t, r, err, "content")
 }
 
-// ─── SavePromptTool ──────────────────────────────────────────────────────────
-
-func TestSavePromptTool_Success(t *testing.T) {
+func TestSaveTool_SaveTypePrompt(t *testing.T) {
 	store := newTestStore(t)
 	seedManualSession(t, store)
-	tool := NewSavePromptTool(store)
+	tool := NewSaveTool(store)
 
 	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"content": "How do I set up auth?",
-		"project": "my-app",
+		"save_type": "prompt",
+		"content":   "How do I set up auth?",
+		"project":   "my-app",
 	}))
 
 	mustNotError(t, r, err)
 	text := resultText(r)
-
 	if !strings.Contains(text, "Prompt saved") {
-		t.Errorf("expected success, got: %s", text)
+		t.Errorf("expected prompt saved response, got: %s", text)
 	}
 }
 
-func TestSavePromptTool_MissingContent(t *testing.T) {
+func TestSaveTool_SaveTypePassive(t *testing.T) {
 	store := newTestStore(t)
-	tool := NewSavePromptTool(store)
+	seedSession(t, store, "sess-1", "my-app")
+	tool := NewSaveTool(store)
 
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{}))
-	mustBeToolError(t, r, err, "content")
+	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
+		"save_type":  "passive",
+		"content":    "Hello world",
+		"session_id": "sess-1",
+		"project":    "my-app",
+		"source":     "conversation",
+	}))
+
+	mustNotError(t, r, err)
+	text := resultText(r)
+	if !strings.Contains(text, "Passive capture complete") {
+		t.Errorf("expected passive capture response, got: %s", text)
+	}
+}
+
+func TestSaveTool_InvalidSaveType(t *testing.T) {
+	store := newTestStore(t)
+	tool := NewSaveTool(store)
+
+	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
+		"save_type": "invalid",
+		"content":   "x",
+	}))
+
+	mustBeToolError(t, r, err, "save_type")
+}
+
+func TestSaveTool_UpsertAutogeneratesTopicKey(t *testing.T) {
+	store := newTestStore(t)
+	seedManualSession(t, store)
+	tool := NewSaveTool(store)
+
+	r1, err := tool.Handle(ctx, makeReq(map[string]interface{}{
+		"title":   "Auth middleware",
+		"content": "first version",
+		"type":    "architecture",
+		"project": "my-app",
+		"upsert":  true,
+	}))
+	mustNotError(t, r1, err)
+
+	r2, err := tool.Handle(ctx, makeReq(map[string]interface{}{
+		"title":   "Auth middleware",
+		"content": "second version",
+		"type":    "architecture",
+		"project": "my-app",
+		"upsert":  true,
+	}))
+	mustNotError(t, r2, err)
+
+	text1 := resultText(r1)
+	text2 := resultText(r2)
+	if !strings.Contains(text1, "Topic key:") {
+		t.Errorf("expected first response to include topic key, got: %s", text1)
+	}
+	if !strings.Contains(text2, "Topic key:") {
+		t.Errorf("expected second response to include topic key, got: %s", text2)
+	}
+}
+
+func TestSaveTool_RelateToArray(t *testing.T) {
+	store := newTestStore(t)
+	seedSession(t, store, "test-session", "my-app")
+	seedManualSession(t, store)
+	target := seedObservation(t, store, "Target", "target content", "my-app")
+	tool := NewSaveTool(store)
+
+	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
+		"title":     "Source",
+		"content":   "source content",
+		"type":      "decision",
+		"project":   "my-app",
+		"relate_to": []interface{}{float64(target)},
+	}))
+
+	mustNotError(t, r, err)
+	text := resultText(r)
+	if !strings.Contains(text, "Relations created: 1/1") {
+		t.Errorf("expected relation creation status, got: %s", text)
+	}
+}
+
+func TestSaveTool_RelateToInvalid(t *testing.T) {
+	store := newTestStore(t)
+	seedManualSession(t, store)
+	tool := NewSaveTool(store)
+
+	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
+		"title":     "Source",
+		"content":   "source content",
+		"relate_to": "not-json",
+	}))
+
+	mustNotError(t, r, err)
+	text := resultText(r)
+	if !strings.Contains(text, "Warning: relate_to ignored") {
+		t.Errorf("expected relate_to warning, got: %s", text)
+	}
 }
 
 // ─── SearchTool ──────────────────────────────────────────────────────────────
@@ -816,130 +997,6 @@ func TestTimelineTool_StandardLevel(t *testing.T) {
 	}
 }
 
-// ─── SessionStartTool ────────────────────────────────────────────────────────
-
-func TestSessionStartTool_Success(t *testing.T) {
-	store := newTestStore(t)
-	tool := NewSessionStartTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"id":        "sess-001",
-		"project":   "my-app",
-		"directory": "/home/user/my-app",
-	}))
-
-	mustNotError(t, r, err)
-	text := resultText(r)
-
-	if !strings.Contains(text, "sess-001") {
-		t.Errorf("expected session id in response, got: %s", text)
-	}
-	if !strings.Contains(text, "my-app") {
-		t.Errorf("expected project in response, got: %s", text)
-	}
-}
-
-func TestSessionStartTool_MissingID(t *testing.T) {
-	store := newTestStore(t)
-	tool := NewSessionStartTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"project": "my-app",
-	}))
-
-	mustBeToolError(t, r, err, "id")
-}
-
-func TestSessionStartTool_MissingProject(t *testing.T) {
-	store := newTestStore(t)
-	tool := NewSessionStartTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"id": "sess-001",
-	}))
-
-	mustBeToolError(t, r, err, "project")
-}
-
-// ─── SessionEndTool ──────────────────────────────────────────────────────────
-
-func TestSessionEndTool_Success(t *testing.T) {
-	store := newTestStore(t)
-	seedSession(t, store, "sess-001", "my-app")
-
-	tool := NewSessionEndTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"id":      "sess-001",
-		"summary": "Completed auth module",
-	}))
-
-	mustNotError(t, r, err)
-	text := resultText(r)
-
-	if !strings.Contains(text, "sess-001") {
-		t.Errorf("expected session id in response, got: %s", text)
-	}
-	if !strings.Contains(text, "completed") {
-		t.Errorf("expected 'completed' in response, got: %s", text)
-	}
-}
-
-func TestSessionEndTool_MissingID(t *testing.T) {
-	store := newTestStore(t)
-	tool := NewSessionEndTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{}))
-	mustBeToolError(t, r, err, "id")
-}
-
-// ─── SessionSummaryTool ──────────────────────────────────────────────────────
-
-func TestSessionSummaryTool_Success(t *testing.T) {
-	store := newTestStore(t)
-	seedSession(t, store, "sess-001", "my-app")
-
-	tool := NewSessionSummaryTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"content":    "## Goal\nBuild auth\n## Accomplished\n- Added JWT",
-		"project":    "my-app",
-		"session_id": "sess-001",
-	}))
-
-	mustNotError(t, r, err)
-	text := resultText(r)
-
-	if !strings.Contains(text, "summary saved") {
-		t.Errorf("expected success message, got: %s", text)
-	}
-	if !strings.Contains(text, "my-app") {
-		t.Errorf("expected project in response, got: %s", text)
-	}
-}
-
-func TestSessionSummaryTool_MissingContent(t *testing.T) {
-	store := newTestStore(t)
-	tool := NewSessionSummaryTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"project": "my-app",
-	}))
-
-	mustBeToolError(t, r, err, "content")
-}
-
-func TestSessionSummaryTool_MissingProject(t *testing.T) {
-	store := newTestStore(t)
-	tool := NewSessionSummaryTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"content": "some summary",
-	}))
-
-	mustBeToolError(t, r, err, "project")
-}
-
 // ─── TimelineTool ────────────────────────────────────────────────────────────
 
 func TestTimelineTool_Success(t *testing.T) {
@@ -1248,56 +1305,6 @@ func TestSuggestTopicKeyTool_MissingBoth(t *testing.T) {
 	mustBeToolError(t, r, err, "title")
 }
 
-// ─── PassiveCaptureTool ──────────────────────────────────────────────────────
-
-func TestPassiveCaptureTool_Success(t *testing.T) {
-	store := newTestStore(t)
-	seedSession(t, store, "sess-1", "my-app")
-
-	tool := NewPassiveCaptureTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"content":    "TIL: You need to handle the case where the database is locked. Also learned that WAL mode prevents this issue.",
-		"session_id": "sess-1",
-		"project":    "my-app",
-		"source":     "conversation",
-	}))
-
-	mustNotError(t, r, err)
-	text := resultText(r)
-
-	if !strings.Contains(text, "Passive capture complete") {
-		t.Errorf("expected success message, got: %s", text)
-	}
-	if !strings.Contains(text, "extracted") {
-		t.Errorf("expected 'extracted' count, got: %s", text)
-	}
-}
-
-func TestPassiveCaptureTool_NoLearnings(t *testing.T) {
-	store := newTestStore(t)
-	tool := NewPassiveCaptureTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"content": "Hello, how are you?",
-	}))
-
-	mustNotError(t, r, err)
-	text := resultText(r)
-
-	if !strings.Contains(text, "0 extracted") {
-		t.Errorf("expected 0 extracted for trivial content, got: %s", text)
-	}
-}
-
-func TestPassiveCaptureTool_MissingContent(t *testing.T) {
-	store := newTestStore(t)
-	tool := NewPassiveCaptureTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{}))
-	mustBeToolError(t, r, err, "content")
-}
-
 // ─── RelateTool ──────────────────────────────────────────────────────────────
 
 func TestRelateTool_Success(t *testing.T) {
@@ -1407,130 +1414,6 @@ func TestRelateTool_SelfRelationError(t *testing.T) {
 	mustBeToolError(t, r, err, "self-relation")
 }
 
-// ─── UnrelateTool ────────────────────────────────────────────────────────────
-
-func TestUnrelateTool_Success(t *testing.T) {
-	store := newTestStore(t)
-	seedSession(t, store, "test-session", "my-app")
-	id1 := seedObservation(t, store, "Unrel A", "Unrelate content A", "my-app")
-	id2 := seedObservation(t, store, "Unrel B", "Unrelate content B", "my-app")
-
-	relIDs, err := store.AddRelation(memory.AddRelationParams{
-		FromID: id1, ToID: id2, Type: "relates_to",
-	})
-	if err != nil {
-		t.Fatalf("seed relation: %v", err)
-	}
-
-	tool := NewUnrelateTool(store)
-
-	r, toolErr := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"id": float64(relIDs[0]),
-	}))
-
-	mustNotError(t, r, toolErr)
-	text := resultText(r)
-
-	if !strings.Contains(text, "removed") {
-		t.Errorf("expected 'removed' in response, got: %s", text)
-	}
-}
-
-func TestUnrelateTool_MissingID(t *testing.T) {
-	store := newTestStore(t)
-	tool := NewUnrelateTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{}))
-	mustBeToolError(t, r, err, "id")
-}
-
-func TestUnrelateTool_NotFound(t *testing.T) {
-	store := newTestStore(t)
-	tool := NewUnrelateTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"id": float64(99999),
-	}))
-
-	mustBeToolError(t, r, err, "not found")
-}
-
-// ─── BuildContextTool ────────────────────────────────────────────────────────
-
-func TestBuildContextTool_Success(t *testing.T) {
-	store := newTestStore(t)
-	seedSession(t, store, "test-session", "my-app")
-	id1 := seedObservation(t, store, "Root node", "Root context content", "my-app")
-	id2 := seedObservation(t, store, "Child node", "Child context content", "my-app")
-
-	if _, err := store.AddRelation(memory.AddRelationParams{
-		FromID: id1, ToID: id2, Type: "implements",
-	}); err != nil {
-		t.Fatalf("AddRelation: %v", err)
-	}
-
-	tool := NewBuildContextTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"observation_id": float64(id1),
-		"depth":          float64(2),
-	}))
-
-	mustNotError(t, r, err)
-	text := resultText(r)
-
-	if !strings.Contains(text, "Context Graph") {
-		t.Errorf("expected 'Context Graph' header, got: %s", text)
-	}
-	if !strings.Contains(text, "Root node") {
-		t.Errorf("expected root title, got: %s", text)
-	}
-	if !strings.Contains(text, "Child node") {
-		t.Errorf("expected connected child title, got: %s", text)
-	}
-	if !strings.Contains(text, "implements") {
-		t.Errorf("expected relation type, got: %s", text)
-	}
-}
-
-func TestBuildContextTool_NoRelations(t *testing.T) {
-	store := newTestStore(t)
-	seedSession(t, store, "test-session", "my-app")
-	id := seedObservation(t, store, "Isolated node", "No connections here", "my-app")
-
-	tool := NewBuildContextTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"observation_id": float64(id),
-	}))
-
-	mustNotError(t, r, err)
-	text := resultText(r)
-
-	if !strings.Contains(text, "No relations found") {
-		t.Errorf("expected 'No relations found', got: %s", text)
-	}
-}
-
-func TestBuildContextTool_MissingID(t *testing.T) {
-	store := newTestStore(t)
-	tool := NewBuildContextTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{}))
-	mustBeToolError(t, r, err, "observation_id")
-}
-
-func TestBuildContextTool_NotFound(t *testing.T) {
-	store := newTestStore(t)
-	tool := NewBuildContextTool(store)
-
-	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"observation_id": float64(99999),
-	}))
-
-	mustBeToolError(t, r, err, "not found")
-}
-
 // ─── GetObservationTool with Relations ───────────────────────────────────────
 
 func TestGetObservationTool_ShowsRelations(t *testing.T) {
@@ -1627,23 +1510,17 @@ func TestAllTools_HaveDefinitions(t *testing.T) {
 		name string
 		def  mcp.Tool
 	}{
+		{"mem_session", NewSessionTool(store).Definition()},
 		{"mem_save", NewSaveTool(store).Definition()},
-		{"mem_save_prompt", NewSavePromptTool(store).Definition()},
 		{"mem_search", NewSearchTool(store).Definition()},
 		{"mem_context", NewContextTool(store).Definition()},
-		{"mem_session_start", NewSessionStartTool(store).Definition()},
-		{"mem_session_end", NewSessionEndTool(store).Definition()},
-		{"mem_session_summary", NewSessionSummaryTool(store).Definition()},
 		{"mem_timeline", NewTimelineTool(store).Definition()},
-		{"mem_get_observation", NewGetObservationTool(store).Definition()},
+		{"mem_get", NewGetObservationTool(store).Definition()},
 		{"mem_stats", NewStatsTool(store).Definition()},
 		{"mem_delete", NewDeleteTool(store).Definition()},
 		{"mem_update", NewUpdateTool(store).Definition()},
 		{"mem_suggest_topic_key", NewSuggestTopicKeyTool().Definition()},
-		{"mem_capture_passive", NewPassiveCaptureTool(store).Definition()},
 		{"mem_relate", NewRelateTool(store).Definition()},
-		{"mem_unrelate", NewUnrelateTool(store).Definition()},
-		{"mem_build_context", NewBuildContextTool(store).Definition()},
 	}
 
 	for _, tt := range tools {
@@ -1655,6 +1532,19 @@ func TestAllTools_HaveDefinitions(t *testing.T) {
 				t.Errorf("definition description is empty for %s", tt.name)
 			}
 		})
+	}
+}
+
+func TestSessionTool_Definition(t *testing.T) {
+	store := newTestStore(t)
+	tool := NewSessionTool(store)
+	def := tool.Definition()
+
+	if def.Name != "mem_session" {
+		t.Errorf("tool name = %q, want mem_session", def.Name)
+	}
+	if _, ok := def.InputSchema.Properties["action"]; !ok {
+		t.Error("mem_session definition missing 'action' parameter")
 	}
 }
 
@@ -2027,12 +1917,13 @@ func TestSaveTool_NamespaceDefinitionParam(t *testing.T) {
 	}
 }
 
-func TestSavePromptTool_WithNamespace(t *testing.T) {
+func TestSaveTool_PromptMode_WithNamespace(t *testing.T) {
 	store := newTestStore(t)
 	seedManualSession(t, store)
-	tool := NewSavePromptTool(store)
+	tool := NewSaveTool(store)
 
 	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
+		"save_type": "prompt",
 		"content":   "How do I set up auth?",
 		"project":   "my-app",
 		"namespace": "subagent/task-42",
@@ -2046,42 +1937,44 @@ func TestSavePromptTool_WithNamespace(t *testing.T) {
 	}
 }
 
-func TestSavePromptTool_NamespaceDefinitionParam(t *testing.T) {
+func TestSaveTool_PromptModeDefinitionParam(t *testing.T) {
 	store := newTestStore(t)
-	tool := NewSavePromptTool(store)
+	tool := NewSaveTool(store)
 	def := tool.Definition()
 
 	if _, ok := def.InputSchema.Properties["namespace"]; !ok {
-		t.Error("mem_save_prompt definition missing 'namespace' parameter")
+		t.Error("mem_save definition missing 'namespace' parameter")
 	}
 }
 
-func TestSessionSummaryTool_WithNamespace(t *testing.T) {
+func TestSessionTool_EndWithSummary(t *testing.T) {
 	store := newTestStore(t)
-	seedManualSession(t, store)
-	tool := NewSessionSummaryTool(store)
+	if err := store.CreateSession("sess-end-1", "my-app", "/tmp/work"); err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+	tool := NewSessionTool(store)
 
 	r, err := tool.Handle(ctx, makeReq(map[string]interface{}{
-		"content":   "## Goal\nImplement auth",
-		"project":   "my-app",
-		"namespace": "subagent/coder",
+		"action":  "end",
+		"id":      "sess-end-1",
+		"summary": "## Goal\nImplement auth",
 	}))
 
 	mustNotError(t, r, err)
 	text := resultText(r)
 
-	if !strings.Contains(text, "Session summary saved") {
+	if !strings.Contains(text, "completed") {
 		t.Errorf("expected success, got: %s", text)
 	}
 }
 
-func TestSessionSummaryTool_NamespaceDefinitionParam(t *testing.T) {
+func TestSessionTool_DefinitionHasSummaryParam(t *testing.T) {
 	store := newTestStore(t)
-	tool := NewSessionSummaryTool(store)
+	tool := NewSessionTool(store)
 	def := tool.Definition()
 
-	if _, ok := def.InputSchema.Properties["namespace"]; !ok {
-		t.Error("mem_session_summary definition missing 'namespace' parameter")
+	if _, ok := def.InputSchema.Properties["summary"]; !ok {
+		t.Error("mem_session definition missing 'summary' parameter")
 	}
 }
 

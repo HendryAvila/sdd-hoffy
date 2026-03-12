@@ -99,7 +99,7 @@ Use mem_suggest_topic_key to generate a normalized key from a title.
 
 ## User Prompts
 
-Call mem_save_prompt to record what the user asked — their intent and goals.
+Call mem_save with save_type="prompt" to record what the user asked — their intent and goals.
 This helps future sessions understand context without the user repeating themselves.
 
 ## Progressive Disclosure Pattern
@@ -107,7 +107,7 @@ This helps future sessions understand context without the user repeating themsel
 1. Start with mem_context for recent observations
 2. Use mem_search for specific topics
 3. Use mem_timeline to see chronological context around a search result
-4. Use mem_get_observation to read the full, untruncated content
+4. Use mem_get to read the full, untruncated content
 
 ## Response Verbosity Control (detail_level parameter)
 
@@ -159,7 +159,7 @@ use the namespace parameter to isolate each sub-agent's memory observations.
 - namespace = WHICH AGENT owns it — isolation boundary
 
 **Tools that support namespace**:
-- Write: mem_save, mem_save_prompt, mem_session_summary, mem_progress
+- Write: mem_save, mem_session, mem_progress
 - Read: mem_search, mem_context, mem_compact
 
 **Convention for namespace values**:
@@ -221,12 +221,12 @@ This transforms flat memories into a navigable web of connected decisions, patte
 - Use bidirectional=true when the relationship goes both ways
 - Add a note to explain WHY the observations are related
 
-**Traversing the graph** — use mem_build_context to explore connections:
-- mem_build_context(observation_id) — shows connected observations up to depth 2
-- mem_build_context(observation_id, depth=3) — goes deeper for more context
+**Traversing the graph** — use mem_get(depth=...) to explore connections:
+- mem_get(id=...) — full observation with direct relations
+- mem_get(id=..., depth=3) — includes deeper connected graph context
 - Use this when exploring a topic to understand its full web of related decisions
 
-**Removing relations** — use mem_unrelate(id) with the relation ID
+**Removing relations** — use mem_relate(action="remove", id=...) with the relation ID
 
 **When to create relations**:
 - After a bug fix, relate it to the decision that caused it (caused_by)

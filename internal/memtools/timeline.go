@@ -183,7 +183,7 @@ func (t *TimelineTool) formatTimelineFull(b *strings.Builder, result *memory.Tim
 
 // ─── GetObservationTool ─────────────────────────────────────────────────────
 
-// GetObservationTool handles the mem_get_observation MCP tool.
+// GetObservationTool handles the mem_get MCP tool.
 type GetObservationTool struct {
 	store *memory.Store
 }
@@ -193,25 +193,34 @@ func NewGetObservationTool(store *memory.Store) *GetObservationTool {
 	return &GetObservationTool{store: store}
 }
 
-// Definition returns the MCP tool definition for mem_get_observation.
+// Definition returns the MCP tool definition for mem_get.
 func (t *GetObservationTool) Definition() mcp.Tool {
-	return mcp.NewTool("mem_get_observation",
+	return mcp.NewTool("mem_get",
 		mcp.WithDescription(
-			"Get the full content of a specific observation by ID. Use when you need the "+
-				"complete, untruncated content of an observation found via mem_search or mem_timeline.",
+			"Get the full content of a specific observation by ID. Optionally include related graph context via depth.",
 		),
 		mcp.WithNumber("id",
 			mcp.Required(),
 			mcp.Description("The observation ID to retrieve"),
 		),
+		mcp.WithNumber("depth",
+			mcp.Description("Optional graph traversal depth (0 default, max 5). When > 0, includes related context."),
+		),
 	)
 }
 
-// Handle processes the mem_get_observation tool call.
+// Handle processes the mem_get tool call.
 func (t *GetObservationTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	id := intArg(req, "id", 0)
 	if id == 0 {
 		return mcp.NewToolResultError("'id' is required"), nil
+	}
+	depth := intArg(req, "depth", 0)
+	if depth < 0 {
+		return mcp.NewToolResultError("'depth' must be >= 0"), nil
+	}
+	if depth > 5 {
+		depth = 5
 	}
 
 	obs, err := t.store.GetObservation(int64(id))
@@ -276,6 +285,20 @@ func (t *GetObservationTool) Handle(ctx context.Context, req mcp.CallToolRequest
 			b.WriteString("**Incoming:**\n")
 			for _, i := range incoming {
 				b.WriteString(i + "\n")
+			}
+		}
+	}
+
+	if depth > 0 {
+		ctxResult, ctxErr := t.store.BuildContext(obs.ID, depth)
+		if ctxErr == nil && ctxResult != nil && len(ctxResult.Connected) > 0 {
+			b.WriteString("\n## Graph Context\n\n")
+			for _, n := range ctxResult.Connected {
+				arrow := "→"
+				if n.Direction == "incoming" {
+					arrow = "←"
+				}
+				fmt.Fprintf(&b, "- depth %d %s #%d (%s) %q\n", n.Depth, arrow, n.ID, n.RelationType, n.Title)
 			}
 		}
 	}

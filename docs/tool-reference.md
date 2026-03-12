@@ -1,29 +1,24 @@
 # Tool Reference
 
-Hoofy exposes **40 MCP tools** and **6 on-demand prompts** across five systems. The AI uses them proactively based on built-in server instructions — you don't need to call them manually.
+Hoofy exposes MCP tools and on-demand prompts across five systems. The AI uses them proactively based on built-in server instructions — you don't need to call them manually.
 
 ---
 
-## Memory (19 tools)
+## Memory
 
 Persistent context across sessions. SQLite + FTS5 full-text search with a knowledge graph for connecting observations.
 
 | Tool | Description |
 |---|---|
-| `mem_save` | Save an observation (decision, bugfix, pattern, discovery, config, architecture). Supports `namespace` for sub-agent isolation |
-| `mem_save_prompt` | Record user intent for future context. Supports `namespace` for sub-agent isolation |
+| `mem_save` | Unified save interface. Supports `save_type: observation \| prompt \| passive` (default: observation), plus observation options (`upsert`, `relate_to`, `topic_key`) and `namespace` |
+| `mem_session` | Unified session lifecycle: `action: start \| end` |
 | `mem_search` | Full-text search across all sessions. Supports `namespace` to filter by sub-agent. Supports `max_tokens` to cap response size |
 | `mem_context` | Recent observations for session startup. Supports `namespace` to filter by sub-agent. Supports `max_tokens` to cap response size |
 | `mem_timeline` | Chronological context around a specific event. Supports `max_tokens` to cap response size |
-| `mem_get_observation` | Full content of a specific observation (includes direct relations) |
+| `mem_get` | Full content of a specific observation (includes direct relations) and optional graph traversal via `depth` |
 | `mem_relate` | Create a typed directional relation between two observations (`relates_to`, `depends_on`, `caused_by`, `implements`, `supersedes`, `part_of`) |
-| `mem_unrelate` | Remove a relation by relation ID |
-| `mem_build_context` | Traverse the knowledge graph from a starting observation with configurable depth |
-| `mem_session_start` | Register a new coding session |
-| `mem_session_end` | Close a session with summary |
-| `mem_session_summary` | Save comprehensive end-of-session summary. Supports `namespace` for sub-agent isolation |
+| `mem_relate` | Create or remove typed relations (`action: add \| remove`) |
 | `mem_stats` | Memory system statistics |
-| `mem_capture_passive` | Passive observation capture from conversation content |
 | `mem_delete` | Remove an observation |
 | `mem_update` | Update an existing observation |
 | `mem_suggest_topic_key` | Suggest stable key for upserts (evolving knowledge) |

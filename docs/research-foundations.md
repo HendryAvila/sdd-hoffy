@@ -22,8 +22,8 @@ The most relevant article for Hoofy's memory system. Defines context as a finite
 | Recommendation | Hoofy Implementation |
 |---|---|
 | "Structured note-taking / agentic memory" — agent writes notes persisted outside the context window, pulls them back later | `mem_save` persists observations to SQLite with FTS5 full-text search. `mem_context` and `mem_search` retrieve them in future sessions |
-| "Progressive disclosure" — agents discover context layer by layer, keeping only what's necessary | `mem_search` → `mem_timeline` → `mem_get_observation` pattern: search first, drill into timeline, then read full content |
-| "Sub-agent architectures" — specialized sub-agents with clean context windows, return condensed summaries | Knowledge graph with `mem_build_context` traverses relations from any observation. `namespace` parameter on 7 memory tools (`mem_save`, `mem_save_prompt`, `mem_session_summary`, `mem_progress`, `mem_search`, `mem_context`, `mem_compact`) enables opt-in isolation — each sub-agent tags observations with its namespace, reads only its own notes, while the orchestrator omits namespace to see everything |
+| "Progressive disclosure" — agents discover context layer by layer, keeping only what's necessary | `mem_search` → `mem_timeline` → `mem_get` pattern: search first, drill into timeline, then read full content |
+| "Sub-agent architectures" — specialized sub-agents with clean context windows, return condensed summaries | Knowledge graph traversal via `mem_get(id, depth)` pulls relations from any observation. `namespace` parameter on memory tools (`mem_save`, `mem_progress`, `mem_search`, `mem_context`, `mem_compact`) enables opt-in isolation — each sub-agent tags observations with its namespace, reads only its own notes, while the orchestrator omits namespace to see everything |
 | "Hybrid strategy" — some data retrieved up front, other data explored just-in-time | `mem_context` loads recent history at session start (up front). `mem_search` retrieves specific memories on demand (just-in-time) |
 | "Context is a finite resource" — treat it like an attention budget | 5 read-heavy tools support `detail_level: summary | standard | full` to control response verbosity: `sdd_get_context`, `mem_context`, `mem_search`, `mem_timeline`, `sdd_context_check`. Summary-mode responses include a footer hint for progressive disclosure. `sdd_get_context` defaults to `summary` (minimal pipeline overview) to save tokens on the most frequently called pipeline tool |
 | "You have to be smart about managing what goes into context" — stale and redundant data degrades performance over time | `mem_compact` identifies stale observations (older than N days) and batch soft-deletes them. Optionally creates a "compaction_summary" observation to preserve key knowledge. Two-step workflow: identify candidates → review → compact with summary |
@@ -35,7 +35,7 @@ Direct guidance on tool design for AI agents. Covers namespacing, consolidation,
 
 | Recommendation | Hoofy Implementation |
 |---|---|
-| "Namespacing tools with prefixes helps delineate boundaries" | `mem_*` (19 memory tools), `sdd_*` (11 project pipeline + 2 bootstrap tools), `sdd_change*` (5 change tools), standalone `sdd_explore`, `sdd_suggest_context`, `sdd_review` — clear boundaries between systems |
+| "Namespacing tools with prefixes helps delineate boundaries" | `mem_*` memory tools, `sdd_*` project tools, `sdd_change*` change tools, plus standalone `sdd_explore`, `sdd_suggest_context`, `sdd_review` — clear boundaries between systems |
 | "Return only high-signal information, avoid cryptic UUIDs" | Tool responses include human-readable summaries, not raw database rows. `detail_level` parameter lets the AI request only the verbosity needed |
 | "Tools should be self-contained, robust to error, extremely clear" | Each tool has comprehensive parameter descriptions with examples in the tool definition |
 | "Truncate tool responses, but always include total counts" | `mem_search`, `mem_context`, and `mem_timeline` append navigation hints ("📊 Showing X of Y") when results are capped by limit. `NavigationHint()` returns empty string when all results are shown (no noise) |
@@ -46,7 +46,7 @@ Architecture lessons from Anthropic's multi-agent Research feature. Key insights
 
 | Recommendation | Hoofy Implementation |
 |---|---|
-| "Long-horizon conversation management: agents summarize completed phases, store in external memory" | `mem_session_summary` captures structured summaries (Goal, Discoveries, Accomplished, Files) at session end for future sessions |
+| "Long-horizon conversation management: agents summarize completed phases, store in external memory" | `mem_session(action="end", summary=...)` captures structured summaries at session end for future sessions |
 | "Subagents output to filesystem to minimize 'game of telephone'" | All pipeline artifacts are written to `sdd/*.md` files on disk, not passed through conversation history |
 | "Each sub-agent works independently with its own context" — parallel agents need memory isolation | `namespace` parameter provides opt-in memory scoping. Sub-agents tag observations with `namespace="subagent/<task-id>"`, reads filter by namespace. Orchestrator omits namespace to see all. Convention: `subagent/<task-id>` or `agent/<role>` |
 | "Token usage explains 80% of performance variance" — more tokens does not equal better results | Topic key upsert (`mem_save` with `topic_key`) prevents memory duplication. One observation per topic, always current |

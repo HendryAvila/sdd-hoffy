@@ -32,6 +32,10 @@ This guide walks you through real workflows using Hoofy's systems: **Memory**, *
 | Remember a decision or discovery | **Memory** | `mem_save` |
 | Pick up where I left off | **Memory** | `mem_context` |
 
+Facade-first note:
+- Prefer `mem_save` (`save_type`) for observation/prompt/passive capture.
+- Use `mem_session(action: "start"|"end")` for session lifecycle.
+
 ---
 
 ## Workflow 0: Explore Before You Plan
@@ -452,7 +456,7 @@ flowchart LR
     style F fill:#10b981,stroke:#059669,color:#fff
 ```
 
-1. **Start** — AI calls `mem_session_start` and `mem_context` to load recent history
+1. **Start** — AI calls `mem_session(action: "start")` and `mem_context` to load recent history
 2. **Work** — As you work, the AI saves observations when something important happens
 3. **End** — AI writes a session summary capturing what was done, discovered, and what's next
 
@@ -472,7 +476,7 @@ flowchart LR
 - `mem_search("authentication")` — find past decisions about auth
 - `mem_context` — what happened in the last few sessions?
 - `mem_timeline(observation_id)` — what happened before and after a specific event?
-- `mem_search` + `mem_get_observation` — search finds it, get retrieves full content
+- `mem_search` + `mem_get` — search finds it, get retrieves full content
 
 ### Topic Keys (Evolving Knowledge)
 
@@ -493,11 +497,11 @@ Observations can be connected with typed, directional relations to form a knowle
 
 The AI creates relations automatically when it recognizes connections between observations. You can also ask it explicitly: *"relate the JWT decision to the auth bugfix"*.
 
-**Traversing the graph**: Use `mem_build_context` with a starting observation and depth to pull in everything connected. This is powerful for understanding the full context around a decision — what caused it, what implements it, what it relates to.
+**Traversing the graph**: Use `mem_get` with `depth` to pull in connected observations from the graph. This is powerful for understanding full context around a decision — what caused it, what implements it, what it relates to.
 
 ```
-mem_build_context(observation_id: 42, max_depth: 2)
--> Returns the observation, its direct relations, and their relations
+mem_get(id: 42, depth: 2)
+-> Returns the observation, its direct relations, and graph context
 ```
 
 ---

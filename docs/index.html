@@ -1093,7 +1093,7 @@ mem_context(limit=20)  # recent observations</code></pre>`,
     summary: 'Observations aren\'t flat notes — they\'re connected with typed relations (caused_by, implements, depends_on, supersedes). Navigate your decision history like a web, not a list.',
     details: {
       what: `<p>Relations are typed, directional edges between observations. When you fix a bug, you can relate it to the decision that caused it. When you implement a feature, link the tasks to their requirements. When a new decision replaces an old one, mark it as <code>supersedes</code>.</p>
-<p><code>mem_build_context</code> traverses the graph from any starting point, showing connected observations up to a configurable depth. It transforms flat memories into a navigable web.</p>`,
+<p><code>mem_get(id, depth)</code> traverses graph context from any starting point, showing connected observations up to a configurable depth. It transforms flat memories into a navigable web.</p>`,
       how: `<pre><code># Create a relation:
 mem_relate(from_id=42, to_id=37, 
            relation_type="caused_by",
@@ -1101,7 +1101,7 @@ mem_relate(from_id=42, to_id=37,
                  auth decision in observation 37")
 
 # Traverse the graph:
-mem_build_context(observation_id=42, depth=3)</code></pre>`,
+mem_get(id=42, depth=3)</code></pre>`,
       why: '<p>Isolated observations lose context over time. Relations preserve the <strong>why</strong> — not just what was decided, but what led to it and what it affected. This is how experienced developers think: in connected webs, not isolated facts.</p>'
     }
   },
@@ -1292,11 +1292,11 @@ mem_search(query="auth", detail_level="summary")
 # Returns: titles and IDs only (~50 tokens)
 
 # Found something interesting — get details:
-mem_get_observation(id=42)
+mem_get(id=42)
 # Returns: full content for that one observation
 
 # Progressive disclosure pattern:
-# summary → standard → full → get_observation</code></pre>`,
+# summary → standard → full → mem_get</code></pre>`,
       why: '<p>Anthropic: <strong>"Context is a finite resource."</strong> Every token of context the AI reads costs attention. Sending 5000 tokens when 200 would suffice means the AI has less capacity for the actual task. Detail level is attention budgeting.</p>'
     }
   },
@@ -1360,7 +1360,7 @@ mem_progress(project="MyApp",
     summary: 'When multiple AI sub-agents work in parallel, the namespace parameter isolates each agent\'s memory. Each sub-agent sees only its own notes. The orchestrator omits namespace to see everything.',
     details: {
       what: `<p>In multi-agent architectures (orchestrator + researcher + coder + reviewer), each sub-agent needs its own memory space. The <code>namespace</code> parameter tags observations with an isolation boundary.</p>
-<p>Seven tools support namespace — 4 write tools (<code>mem_save</code>, <code>mem_save_prompt</code>, <code>mem_session_summary</code>, <code>mem_progress</code>) and 3 read tools (<code>mem_search</code>, <code>mem_context</code>, <code>mem_compact</code>). The orchestrator omits namespace to see all observations across all sub-agents.</p>`,
+<p>Five tools support namespace — write tools (<code>mem_save</code>, <code>mem_progress</code>) and read tools (<code>mem_search</code>, <code>mem_context</code>, <code>mem_compact</code>). The orchestrator omits namespace to see all observations across all sub-agents.</p>`,
       how: `<pre><code># Sub-agent saves with namespace:
 mem_save(title="Auth API findings",
   namespace="subagent/researcher-123",

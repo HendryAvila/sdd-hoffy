@@ -16,6 +16,73 @@ type ContextTool struct {
 	store config.Store
 }
 
+// SDDContextTool handles the unified sdd_context MCP tool.
+type SDDContextTool struct {
+	getTool     *ContextTool
+	checkTool   *ContextCheckTool
+	suggestTool *SuggestContextTool
+}
+
+// NewSDDContextTool creates a unified context facade for get/check/suggest modes.
+func NewSDDContextTool(get *ContextTool, check *ContextCheckTool, suggest *SuggestContextTool) *SDDContextTool {
+	return &SDDContextTool{getTool: get, checkTool: check, suggestTool: suggest}
+}
+
+// Definition returns the MCP tool definition for sdd_context.
+func (t *SDDContextTool) Definition() mcp.Tool {
+	return mcp.NewTool("sdd_context",
+		mcp.WithDescription(
+			"Unified SDD context interface. Use mode=get for project state, mode=check for change conflict scan, and mode=suggest for ad-hoc context recommendations.",
+		),
+		mcp.WithString("mode",
+			mcp.Description("Context mode: get (default), check, suggest"),
+		),
+		mcp.WithString("stage",
+			mcp.Description("For mode=get: specific stage artifact to read"),
+		),
+		mcp.WithString("detail_level",
+			mcp.Description("Optional detail level: summary, standard, full"),
+		),
+		mcp.WithNumber("max_tokens",
+			mcp.Description("Optional token budget cap"),
+		),
+		mcp.WithString("change_description",
+			mcp.Description("For mode=check: description of the change to scan against context"),
+		),
+		mcp.WithString("task_description",
+			mcp.Description("For mode=suggest: description of planned task/work"),
+		),
+		mcp.WithString("project_name",
+			mcp.Description("Optional project filter for memory search in check/suggest modes"),
+		),
+	)
+}
+
+// Handle processes the sdd_context tool call.
+func (t *SDDContextTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	mode := strings.ToLower(strings.TrimSpace(req.GetString("mode", "get")))
+	if mode == "" {
+		mode = "get"
+	}
+
+	switch mode {
+	case "get":
+		return t.getTool.Handle(ctx, req)
+	case "check":
+		if strings.TrimSpace(req.GetString("change_description", "")) == "" {
+			return mcp.NewToolResultError("'change_description' is required for mode=check"), nil
+		}
+		return t.checkTool.Handle(ctx, req)
+	case "suggest":
+		if strings.TrimSpace(req.GetString("task_description", "")) == "" {
+			return mcp.NewToolResultError("'task_description' is required for mode=suggest"), nil
+		}
+		return t.suggestTool.Handle(ctx, req)
+	default:
+		return mcp.NewToolResultError("'mode' must be one of: get, check, suggest"), nil
+	}
+}
+
 // NewContextTool creates a ContextTool with its dependencies.
 func NewContextTool(store config.Store) *ContextTool {
 	return &ContextTool{store: store}

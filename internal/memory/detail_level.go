@@ -39,7 +39,7 @@ const SummaryFooter = "\n---\n💡 Use detail_level: standard or full for more d
 
 // NavigationHint returns a one-line footer when results are capped by a limit.
 // Returns an empty string when all results fit (showing >= total) or total is 0.
-// The hint parameter provides tool-specific guidance (e.g., "Use mem_get_observation #ID for full content.").
+// The hint parameter provides tool-specific guidance (e.g., "Use mem_get #ID for full content.").
 func NavigationHint(showing, total int, hint string) string {
 	if total <= 0 || showing >= total {
 		return ""

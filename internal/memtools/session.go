@@ -3,172 +3,74 @@ package memtools
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/HendryAvila/Hoofy/internal/memory"
 	"github.com/mark3labs/mcp-go/mcp"
 )
 
-// SessionStartTool handles the mem_session_start MCP tool.
-type SessionStartTool struct {
+// SessionTool handles the unified mem_session MCP tool.
+type SessionTool struct {
 	store *memory.Store
 }
 
-// NewSessionStartTool creates a SessionStartTool.
-func NewSessionStartTool(store *memory.Store) *SessionStartTool {
-	return &SessionStartTool{store: store}
+// NewSessionTool creates a SessionTool.
+func NewSessionTool(store *memory.Store) *SessionTool {
+	return &SessionTool{store: store}
 }
 
-// Definition returns the MCP tool definition for mem_session_start.
-func (t *SessionStartTool) Definition() mcp.Tool {
-	return mcp.NewTool("mem_session_start",
+// Definition returns the MCP tool definition for mem_session.
+func (t *SessionTool) Definition() mcp.Tool {
+	return mcp.NewTool("mem_session",
 		mcp.WithDescription(
-			"Register the start of a new coding session. Call this at the beginning "+
-				"of a session to track activity.",
+			"Manage coding session lifecycle with a single entrypoint. Use action=start to begin a session and action=end to close it.",
+		),
+		mcp.WithString("action",
+			mcp.Required(),
+			mcp.Description("Session action: start or end"),
 		),
 		mcp.WithString("id",
 			mcp.Required(),
-			mcp.Description("Unique session identifier"),
+			mcp.Description("Session identifier"),
 		),
 		mcp.WithString("project",
-			mcp.Required(),
-			mcp.Description("Project name"),
+			mcp.Description("Project name (required for action=start)"),
 		),
 		mcp.WithString("directory",
-			mcp.Description("Working directory"),
-		),
-	)
-}
-
-// Handle processes the mem_session_start tool call.
-func (t *SessionStartTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	id := req.GetString("id", "")
-	project := req.GetString("project", "")
-
-	if id == "" {
-		return mcp.NewToolResultError("'id' is required"), nil
-	}
-	if project == "" {
-		return mcp.NewToolResultError("'project' is required"), nil
-	}
-
-	directory := req.GetString("directory", "")
-
-	if err := t.store.CreateSession(id, project, directory); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("failed to start session: %v", err)), nil
-	}
-
-	return mcp.NewToolResultText(fmt.Sprintf("Session %q started for project %q", id, project)), nil
-}
-
-// ─── SessionEndTool ─────────────────────────────────────────────────────────
-
-// SessionEndTool handles the mem_session_end MCP tool.
-type SessionEndTool struct {
-	store *memory.Store
-}
-
-// NewSessionEndTool creates a SessionEndTool.
-func NewSessionEndTool(store *memory.Store) *SessionEndTool {
-	return &SessionEndTool{store: store}
-}
-
-// Definition returns the MCP tool definition for mem_session_end.
-func (t *SessionEndTool) Definition() mcp.Tool {
-	return mcp.NewTool("mem_session_end",
-		mcp.WithDescription(
-			"Mark a coding session as completed with an optional summary.",
-		),
-		mcp.WithString("id",
-			mcp.Required(),
-			mcp.Description("Session identifier to close"),
+			mcp.Description("Working directory (optional for action=start)"),
 		),
 		mcp.WithString("summary",
-			mcp.Description("Summary of what was accomplished"),
+			mcp.Description("Summary of what was accomplished (optional for action=end)"),
 		),
 	)
 }
 
-// Handle processes the mem_session_end tool call.
-func (t *SessionEndTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// Handle processes the mem_session tool call.
+func (t *SessionTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	action := strings.ToLower(strings.TrimSpace(req.GetString("action", "")))
 	id := req.GetString("id", "")
 	if id == "" {
 		return mcp.NewToolResultError("'id' is required"), nil
 	}
 
-	summary := req.GetString("summary", "")
-
-	if err := t.store.EndSession(id, summary); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("failed to end session: %v", err)), nil
+	switch action {
+	case "start":
+		project := req.GetString("project", "")
+		if project == "" {
+			return mcp.NewToolResultError("'project' is required for action=start"), nil
+		}
+		directory := req.GetString("directory", "")
+		if err := t.store.CreateSession(id, project, directory); err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to start session: %v", err)), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Session %q started for project %q", id, project)), nil
+	case "end":
+		summary := req.GetString("summary", "")
+		if err := t.store.EndSession(id, summary); err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to end session: %v", err)), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Session %q completed", id)), nil
+	default:
+		return mcp.NewToolResultError("'action' must be one of: start, end"), nil
 	}
-
-	return mcp.NewToolResultText(fmt.Sprintf("Session %q completed", id)), nil
-}
-
-// ─── SessionSummaryTool ─────────────────────────────────────────────────────
-
-// SessionSummaryTool handles the mem_session_summary MCP tool.
-type SessionSummaryTool struct {
-	store *memory.Store
-}
-
-// NewSessionSummaryTool creates a SessionSummaryTool.
-func NewSessionSummaryTool(store *memory.Store) *SessionSummaryTool {
-	return &SessionSummaryTool{store: store}
-}
-
-// Definition returns the MCP tool definition for mem_session_summary.
-func (t *SessionSummaryTool) Definition() mcp.Tool {
-	return mcp.NewTool("mem_session_summary",
-		mcp.WithDescription(
-			"Save a comprehensive end-of-session summary. Call this when a session is ending "+
-				"or when significant work is complete. This creates a structured summary that future "+
-				"sessions will use to understand what happened.",
-		),
-		mcp.WithString("content",
-			mcp.Required(),
-			mcp.Description("Full session summary using Goal/Instructions/Discoveries/Accomplished/Files format"),
-		),
-		mcp.WithString("project",
-			mcp.Required(),
-			mcp.Description("Project name"),
-		),
-		mcp.WithString("session_id",
-			mcp.Description("Session ID (default: manual-save)"),
-		),
-		mcp.WithString("namespace",
-			mcp.Description("Optional sub-agent namespace for memory isolation (e.g. 'subagent/task-123', 'agent/researcher'). When set, the summary is scoped to this namespace."),
-		),
-	)
-}
-
-// Handle processes the mem_session_summary tool call.
-func (t *SessionSummaryTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	content := req.GetString("content", "")
-	project := req.GetString("project", "")
-
-	if content == "" {
-		return mcp.NewToolResultError("'content' is required"), nil
-	}
-	if project == "" {
-		return mcp.NewToolResultError("'project' is required"), nil
-	}
-
-	sessionID := req.GetString("session_id", "manual-save")
-	namespace := req.GetString("namespace", "")
-
-	id, err := t.store.AddObservation(memory.AddObservationParams{
-		SessionID: sessionID,
-		Type:      "session_summary",
-		Title:     fmt.Sprintf("Session summary: %s", project),
-		Content:   content,
-		Project:   project,
-		Scope:     "project",
-		TopicKey:  "",
-		Namespace: namespace,
-	})
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("failed to save session summary: %v", err)), nil
-	}
-
-	return mcp.NewToolResultText(fmt.Sprintf("Session summary saved for %q (ID: %d)", project, id)), nil
 }

@@ -149,7 +149,7 @@ func (t *SearchTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	})
 	if err == nil {
 		b.WriteString(memory.NavigationHint(len(results), total,
-			"Use mem_get_observation #ID for full content."))
+			"Use mem_get #ID for full content."))
 	}
 
 	// Always append token footer for context budget visibility.

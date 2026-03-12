@@ -3,6 +3,7 @@ package memtools
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/HendryAvila/Hoofy/internal/memory"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -24,21 +25,20 @@ func NewRelateTool(store *memory.Store) *RelateTool {
 func (t *RelateTool) Definition() mcp.Tool {
 	return mcp.NewTool("mem_relate",
 		mcp.WithDescription(
-			"Create a typed relation between two memory observations. "+
-				"Use this to connect related decisions, bugs, patterns, and discoveries into a knowledge graph. "+
-				"Common relation types: relates_to, implements, depends_on, caused_by, supersedes, part_of.",
+			"Create or remove typed relations between memory observations. "+
+				"Use action=add (default) to create links and action=remove to delete by relation ID.",
+		),
+		mcp.WithString("action",
+			mcp.Description("Relation action: add (default) or remove"),
 		),
 		mcp.WithNumber("from_id",
-			mcp.Required(),
-			mcp.Description("Source observation ID"),
+			mcp.Description("Source observation ID (required for action=add)"),
 		),
 		mcp.WithNumber("to_id",
-			mcp.Required(),
-			mcp.Description("Target observation ID"),
+			mcp.Description("Target observation ID (required for action=add)"),
 		),
 		mcp.WithString("relation_type",
-			mcp.Required(),
-			mcp.Description("Type of relation: relates_to, implements, depends_on, caused_by, supersedes, part_of (or any custom string)"),
+			mcp.Description("Type of relation: relates_to, implements, depends_on, caused_by, supersedes, part_of (required for action=add)"),
 		),
 		mcp.WithString("note",
 			mcp.Description("Optional context about why these observations are related"),
@@ -46,11 +46,35 @@ func (t *RelateTool) Definition() mcp.Tool {
 		mcp.WithBoolean("bidirectional",
 			mcp.Description("If true, creates both A→B and B→A relations atomically (default: false)"),
 		),
+		mcp.WithNumber("id",
+			mcp.Description("Relation ID to remove (required for action=remove)"),
+		),
 	)
 }
 
 // Handle processes the mem_relate tool call.
 func (t *RelateTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	action := strings.ToLower(strings.TrimSpace(req.GetString("action", "add")))
+	if action == "" {
+		action = "add"
+	}
+
+	if action == "remove" {
+		id := intArg(req, "id", 0)
+		if id == 0 {
+			return mcp.NewToolResultError("'id' is required for action=remove"), nil
+		}
+		err := t.store.RemoveRelation(int64(id))
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to remove relation: %v", err)), nil
+		}
+		return mcp.NewToolResultText(fmt.Sprintf("Relation %d removed", id)), nil
+	}
+
+	if action != "add" {
+		return mcp.NewToolResultError("'action' must be one of: add, remove"), nil
+	}
+
 	fromID := intArg(req, "from_id", 0)
 	toID := intArg(req, "to_id", 0)
 
@@ -91,45 +115,4 @@ func (t *RelateTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		fmt.Sprintf("Relation created: #%d → #%d (%s)\nRelation ID: %d",
 			fromID, toID, relType, ids[0]),
 	), nil
-}
-
-// ─── UnrelateTool ───────────────────────────────────────────────────────────
-
-// UnrelateTool handles the mem_unrelate MCP tool.
-type UnrelateTool struct {
-	store *memory.Store
-}
-
-// NewUnrelateTool creates an UnrelateTool with the given memory store.
-func NewUnrelateTool(store *memory.Store) *UnrelateTool {
-	return &UnrelateTool{store: store}
-}
-
-// Definition returns the MCP tool definition for mem_unrelate.
-func (t *UnrelateTool) Definition() mcp.Tool {
-	return mcp.NewTool("mem_unrelate",
-		mcp.WithDescription(
-			"Remove a relation between observations by relation ID. "+
-				"Use mem_get_observation or mem_build_context to find relation IDs first.",
-		),
-		mcp.WithNumber("id",
-			mcp.Required(),
-			mcp.Description("Relation ID to remove"),
-		),
-	)
-}
-
-// Handle processes the mem_unrelate tool call.
-func (t *UnrelateTool) Handle(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	id := intArg(req, "id", 0)
-	if id == 0 {
-		return mcp.NewToolResultError("'id' is required"), nil
-	}
-
-	err := t.store.RemoveRelation(int64(id))
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("failed to remove relation: %v", err)), nil
-	}
-
-	return mcp.NewToolResultText(fmt.Sprintf("Relation %d removed", id)), nil
 }

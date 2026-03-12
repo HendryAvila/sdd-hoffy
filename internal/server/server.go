@@ -139,6 +139,10 @@ func New() (*server.MCPServer, func(), error) {
 	suggestContextTool := tools.NewSuggestContextTool(changeStore, memStore)
 	s.AddTool(suggestContextTool.Definition(), suggestContextTool.Handle)
 
+	// Unified SDD context facade: get/check/suggest in one entrypoint.
+	sddContextTool := tools.NewSDDContextTool(contextTool, contextCheckTool, suggestContextTool)
+	s.AddTool(sddContextTool.Definition(), sddContextTool.Handle)
+
 	// Review tool registered unconditionally — standalone spec-aware
 	// code review, generates checklists from project specs.
 	reviewTool := tools.NewReviewTool(memStore)
@@ -215,27 +219,15 @@ func New() (*server.MCPServer, func(), error) {
 // is disabled or hasn't been initialized.
 func noop() {}
 
-// registerMemoryTools registers all 19 memory MCP tools with the server.
+// registerMemoryTools registers memory MCP tools with the server.
 func registerMemoryTools(s *server.MCPServer, ms *memory.Store) {
 	// --- Session lifecycle ---
-	sessionStart := memtools.NewSessionStartTool(ms)
-	s.AddTool(sessionStart.Definition(), sessionStart.Handle)
-
-	sessionEnd := memtools.NewSessionEndTool(ms)
-	s.AddTool(sessionEnd.Definition(), sessionEnd.Handle)
-
-	sessionSummary := memtools.NewSessionSummaryTool(ms)
-	s.AddTool(sessionSummary.Definition(), sessionSummary.Handle)
+	sessionTool := memtools.NewSessionTool(ms)
+	s.AddTool(sessionTool.Definition(), sessionTool.Handle)
 
 	// --- Save & capture ---
 	saveTool := memtools.NewSaveTool(ms)
 	s.AddTool(saveTool.Definition(), saveTool.Handle)
-
-	savePrompt := memtools.NewSavePromptTool(ms)
-	s.AddTool(savePrompt.Definition(), savePrompt.Handle)
-
-	passiveCapture := memtools.NewPassiveCaptureTool(ms)
-	s.AddTool(passiveCapture.Definition(), passiveCapture.Handle)
 
 	// --- Progress tracking ---
 	progressTool := memtools.NewProgressTool(ms)
@@ -275,12 +267,6 @@ func registerMemoryTools(s *server.MCPServer, ms *memory.Store) {
 	// --- Knowledge graph (relations) ---
 	relateTool := memtools.NewRelateTool(ms)
 	s.AddTool(relateTool.Definition(), relateTool.Handle)
-
-	unrelateTool := memtools.NewUnrelateTool(ms)
-	s.AddTool(unrelateTool.Definition(), unrelateTool.Handle)
-
-	buildCtx := memtools.NewBuildContextTool(ms)
-	s.AddTool(buildCtx.Definition(), buildCtx.Handle)
 }
 
 // serverInstructions returns the system instructions that tell the AI
@@ -412,10 +398,10 @@ Use the type parameter: decision, architecture, bugfix, pattern, config, discove
 - When the user references something from a previous session
 
 ### Session Lifecycle
-1. Call mem_session_start at the beginning of each coding session
-2. Save observations throughout the session (decisions, fixes, discoveries)
-3. Call mem_session_summary with a structured summary (Goal/Instructions/Discoveries/Accomplished/Files)
-4. Call mem_session_end to close the session
+1. Call mem_session with action="start" at the beginning of each coding session
+2. Save observations throughout the session (decisions, fixes, discoveries) using mem_save
+3. Optionally include a structured summary in mem_session(action="end", summary=...)
+4. Call mem_session with action="end" to close the session
 
 For full memory documentation (progress tracking, compaction, topic keys,
 namespace scoping, context budget, knowledge graph, progressive disclosure),
