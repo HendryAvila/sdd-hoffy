@@ -25,10 +25,6 @@
   <a href="docs/research-foundations.md">Research Foundations</a> ·
 </p>
 
-<p align="center">
-  <a href="https://hendryavila.github.io/Hoofy/"><strong>🐴 Explore the Interactive Documentation →</strong></a>
-</p>
-
 ---
 
 ## Start Here (TL;DR)
